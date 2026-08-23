@@ -11,29 +11,36 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Category
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.MoreHoriz
-import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -79,7 +86,7 @@ fun HomeRoute(
 @Composable
 private fun HomeScreen(
     state: HomeUiState,
-    onSaveItem: (String?, String, String, String, String) -> Unit,
+    onSaveItem: (String?, String, String, String, String) -> Boolean,
     onDeleteItem: (String) -> Unit,
     onCreateType: (String) -> Unit,
     onUpdateType: (ItemType, String) -> Unit,
@@ -89,6 +96,7 @@ private fun HomeScreen(
     var editingItem by remember { mutableStateOf<Item?>(null) }
     var showItemForm by remember { mutableStateOf(false) }
     var showTypes by remember { mutableStateOf(false) }
+    var returnToItemForm by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf(TextFieldValue("")) }
     var selectedTypeId by remember { mutableStateOf<String?>(null) }
     val visibleItems = state.items.filter { item ->
@@ -96,11 +104,43 @@ private fun HomeScreen(
             item.name.contains(search.text, ignoreCase = true)
     }
 
+    if (showItemForm) {
+        ItemFormPage(
+            item = editingItem,
+            types = state.types,
+            onBack = { showItemForm = false },
+            onSave = { id, name, typeId, date, price ->
+                if (onSaveItem(id, name, typeId, date, price)) showItemForm = false
+            },
+            onManageTypes = {
+                showItemForm = false
+                showTypes = true
+                returnToItemForm = true
+            },
+        )
+        return
+    }
+    if (showTypes) {
+        TypesPage(
+            types = state.types,
+            onBack = {
+                showTypes = false
+                if (returnToItemForm) showItemForm = true
+                returnToItemForm = false
+            },
+            onCreate = onCreateType,
+            onUpdate = onUpdateType,
+            onDelete = onDeleteType,
+        )
+        return
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets.safeDrawing,
         bottomBar = {
             IndustrialBottomBar(
-                onTypesClick = { showTypes = true },
+                onTypesClick = { returnToItemForm = false; showTypes = true },
                 onMoreClick = onMoreClick,
             )
         },
@@ -177,27 +217,6 @@ private fun HomeScreen(
         }
     }
 
-    if (showItemForm) {
-        ItemFormDialog(
-            item = editingItem,
-            types = state.types,
-            onDismiss = { showItemForm = false },
-            onSave = { id, name, typeId, date, price ->
-                onSaveItem(id, name, typeId, date, price)
-                showItemForm = false
-            },
-            onManageTypes = { showItemForm = false; showTypes = true },
-        )
-    }
-    if (showTypes) {
-        TypesDialog(
-            types = state.types,
-            onDismiss = { showTypes = false },
-            onCreate = onCreateType,
-            onUpdate = onUpdateType,
-            onDelete = onDeleteType,
-        )
-    }
 }
 
 @Composable
@@ -274,12 +293,12 @@ private fun IndustrialBottomBar(onTypesClick: () -> Unit, onMoreClick: () -> Uni
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
             .border(BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant))
             .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
         BottomDestination(Icons.Outlined.Inventory2, stringResource(R.string.inventory), selected = true)
-        BottomDestination(Icons.Outlined.Schedule, stringResource(R.string.timeline))
         BottomDestination(Icons.Outlined.Category, stringResource(R.string.categories), onClick = onTypesClick)
         BottomDestination(Icons.Outlined.MoreHoriz, stringResource(R.string.more), onClick = onMoreClick)
     }
@@ -304,10 +323,11 @@ private fun BottomDestination(
 }
 
 @Composable
-private fun ItemFormDialog(
+@OptIn(ExperimentalMaterial3Api::class)
+private fun ItemFormPage(
     item: Item?,
     types: List<ItemType>,
-    onDismiss: () -> Unit,
+    onBack: () -> Unit,
     onSave: (String?, String, String, String, String) -> Unit,
     onManageTypes: () -> Unit,
 ) {
@@ -315,75 +335,133 @@ private fun ItemFormDialog(
     var typeId by remember { mutableStateOf(item?.typeId ?: types.firstOrNull()?.id.orEmpty()) }
     var date by remember { mutableStateOf(item?.arrivalDate?.toString() ?: LocalDate.now().toString()) }
     var price by remember { mutableStateOf(item?.let { "%.2f".format(it.purchasePriceInCents / 100.0) }.orEmpty()) }
-    var expanded by remember { mutableStateOf(false) }
+    var showTypeSheet by remember { mutableStateOf(false) }
     val selectedType = types.find { it.id == typeId }
-    val valid = name.isNotBlank() && typeId.isNotBlank() && runCatching { LocalDate.parse(date) }.isSuccess &&
-        price.replace(',', '.').toBigDecimalOrNull()?.signum() != -1
+    val valid = name.isNotBlank() && typeId.isNotBlank() &&
+        runCatching { LocalDate.parse(date) }.isSuccess && parsePriceInCents(price) != null
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(if (item == null) R.string.new_item else R.string.edit_item).uppercase()) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.name)) })
-                Box {
-                    OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text(selectedType?.name ?: stringResource(R.string.select_type))
-                    }
-                    DropdownMenu(expanded, { expanded = false }) {
-                        types.forEach { type ->
-                            DropdownMenuItem(
-                                text = { Text(type.name) },
-                                onClick = { typeId = type.id; expanded = false },
-                            )
-                        }
-                    }
+    androidx.activity.compose.BackHandler(onBack = onBack)
+    Column(
+        modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 20.dp),
+    ) {
+        Spacer(Modifier.height(20.dp))
+        EditorialHeader(
+            title = stringResource(if (item == null) R.string.new_item else R.string.edit_item),
+            onBack = onBack,
+            actionEnabled = valid,
+            onAction = { onSave(item?.id, name, typeId, date, price) },
+        )
+        Spacer(Modifier.height(32.dp))
+        Column(
+            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
+        ) {
+            FieldLabel(stringResource(R.string.name))
+            OutlinedTextField(name, { name = it }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            FieldLabel(stringResource(R.string.item_type))
+            OutlinedButton(onClick = { showTypeSheet = true }, modifier = Modifier.fillMaxWidth()) {
+                Text((selectedType?.name ?: stringResource(R.string.select_type)).uppercase())
+            }
+            TextButton(onClick = onManageTypes) {
+                Text(stringResource(if (types.isEmpty()) R.string.create_first_type else R.string.manage_types).uppercase())
+            }
+            FieldLabel(stringResource(R.string.arrival_date))
+            OutlinedTextField(date, { date = it }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            FieldLabel(stringResource(R.string.purchase_price))
+            OutlinedTextField(price, { price = it }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        }
+    }
+    if (showTypeSheet) {
+        ModalBottomSheet(onDismissRequest = { showTypeSheet = false }) {
+            Text(
+                stringResource(R.string.select_type).uppercase(),
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+            )
+            types.forEach { type ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { typeId = type.id; showTypeSheet = false }
+                        .padding(horizontal = 24.dp, vertical = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(type.name.uppercase(), style = MaterialTheme.typography.titleMedium)
+                    if (type.id == typeId) Icon(Icons.Outlined.Check, null)
                 }
-                if (types.isEmpty()) TextButton(onClick = onManageTypes) { Text(stringResource(R.string.create_first_type)) }
-                OutlinedTextField(date, { date = it }, label = { Text(stringResource(R.string.arrival_date)) })
-                OutlinedTextField(price, { price = it }, label = { Text(stringResource(R.string.purchase_price)) })
             }
-        },
-        confirmButton = {
-            Button(enabled = valid, onClick = { onSave(item?.id, name, typeId, date, price) }) {
-                Text(stringResource(R.string.save))
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
-    )
+            Spacer(Modifier.height(24.dp))
+        }
+    }
 }
 
 @Composable
-private fun TypesDialog(
+private fun TypesPage(
     types: List<ItemType>,
-    onDismiss: () -> Unit,
+    onBack: () -> Unit,
     onCreate: (String) -> Unit,
     onUpdate: (ItemType, String) -> Unit,
     onDelete: (ItemType) -> Unit,
 ) {
     var name by remember { mutableStateOf("") }
     var editing by remember { mutableStateOf<ItemType?>(null) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.item_types).uppercase()) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.type_name)) })
-                Button(
-                    enabled = name.isNotBlank(),
-                    onClick = {
-                        editing?.let { onUpdate(it, name) } ?: onCreate(name)
-                        name = ""; editing = null
-                    },
-                ) { Text(stringResource(if (editing == null) R.string.add else R.string.save)) }
-                types.forEach { type ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(type.name, Modifier.clickable { editing = type; name = type.name }.padding(12.dp))
-                        TextButton(onClick = { onDelete(type) }) { Text(stringResource(R.string.delete)) }
+    androidx.activity.compose.BackHandler(onBack = onBack)
+    Column(
+        Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 20.dp),
+    ) {
+        Spacer(Modifier.height(20.dp))
+        EditorialHeader(stringResource(R.string.item_types), onBack)
+        Spacer(Modifier.height(32.dp))
+        FieldLabel(stringResource(R.string.type_name))
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(name, { name = it }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        Spacer(Modifier.height(12.dp))
+        Button(
+            enabled = name.isNotBlank(),
+            modifier = Modifier.fillMaxWidth(),
+            onClick = {
+                editing?.let { onUpdate(it, name) } ?: onCreate(name)
+                name = ""; editing = null
+            },
+        ) { Text(stringResource(if (editing == null) R.string.add else R.string.save).uppercase()) }
+        Spacer(Modifier.height(28.dp))
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(types, key = ItemType::id) { type ->
+                Card(
+                    modifier = Modifier.fillMaxWidth().clickable { editing = type; name = type.name },
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                ) {
+                    Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(type.name.uppercase(), style = MaterialTheme.typography.titleMedium)
+                        TextButton(onClick = { onDelete(type) }) { Text(stringResource(R.string.delete).uppercase()) }
                     }
                 }
             }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } },
-    )
+        }
+    }
+}
+
+@Composable
+private fun EditorialHeader(
+    title: String,
+    onBack: () -> Unit,
+    actionEnabled: Boolean = false,
+    onAction: () -> Unit = {},
+) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, stringResource(R.string.back)) }
+        Text(title.uppercase(), modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
+        if (actionEnabled) {
+            IconButton(
+                onClick = onAction,
+                modifier = Modifier.background(MaterialTheme.colorScheme.primary),
+            ) { Icon(Icons.Outlined.Check, stringResource(R.string.save), tint = MaterialTheme.colorScheme.onPrimary) }
+        }
+    }
+}
+
+@Composable
+private fun FieldLabel(text: String) {
+    Text(text.uppercase(), style = MaterialTheme.typography.labelMedium)
 }

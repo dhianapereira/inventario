@@ -9,6 +9,8 @@
     <string name="name">Nome</string>
     <string name="select_type">Selecione um tipo</string>
     <string name="create_first_type">Cadastrar o primeiro tipo</string>
+    <string name="manage_types">Gerenciar tipos</string>
+    <string name="item_type">Tipo do item</string>
     <string name="arrival_date">Data de chegada (AAAA-MM-DD)</string>
     <string name="purchase_price">Valor pago</string>
     <string name="type_name">Nome do tipo</string>

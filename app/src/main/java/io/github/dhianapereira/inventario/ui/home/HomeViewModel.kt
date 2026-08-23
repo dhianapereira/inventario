@@ -8,6 +8,7 @@ import io.github.dhianapereira.inventario.data.type.ItemTypeRepository
 import io.github.dhianapereira.inventario.model.Item
 import io.github.dhianapereira.inventario.model.ItemType
 import java.math.BigDecimal
+import java.math.RoundingMode
 import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
@@ -36,16 +37,20 @@ class HomeViewModel @Inject constructor(
         initialValue = HomeUiState(),
     )
 
-    fun saveItem(id: String?, name: String, typeId: String, date: String, price: String) {
-        val arrivalDate = LocalDate.parse(date)
-        val cents = BigDecimal(price.replace(',', '.')).movePointRight(2).longValueExact()
+    fun saveItem(id: String?, name: String, typeId: String, date: String, price: String): Boolean {
+        if (name.isBlank() || typeId.isBlank()) return false
+        val arrivalDate = runCatching { LocalDate.parse(date) }.getOrNull() ?: return false
+        val cents = parsePriceInCents(price) ?: return false
         viewModelScope.launch {
-            if (id == null) {
-                itemRepository.createItem(name, typeId, arrivalDate, cents)
-            } else {
-                itemRepository.updateItem(Item(id, name, typeId, arrivalDate, cents))
+            runCatching {
+                if (id == null) {
+                    itemRepository.createItem(name, typeId, arrivalDate, cents)
+                } else {
+                    itemRepository.updateItem(Item(id, name, typeId, arrivalDate, cents))
+                }
             }
         }
+        return true
     }
 
     fun deleteItem(id: String) = viewModelScope.launch { itemRepository.deleteItem(id) }
@@ -57,4 +62,18 @@ class HomeViewModel @Inject constructor(
     }
 
     fun deleteType(type: ItemType) = viewModelScope.launch { typeRepository.deleteType(type) }
+}
+
+internal fun parsePriceInCents(value: String): Long? {
+    val trimmed = value.trim()
+    if (trimmed.isEmpty()) return null
+    val normalized = if (',' in trimmed) {
+        trimmed.replace(".", "").replace(',', '.')
+    } else {
+        trimmed
+    }
+    return runCatching {
+        val amount = BigDecimal(normalized).setScale(2, RoundingMode.UNNECESSARY)
+        if (amount.signum() < 0) null else amount.movePointRight(2).longValueExact()
+    }.getOrNull()
 }
