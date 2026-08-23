@@ -9,4 +9,9 @@ class PriceParserTest {
     @Test fun `parses dot decimal value`() = assertEquals(12_990L, parsePriceInCents("129.90"))
     @Test fun `rejects empty value`() = assertNull(parsePriceInCents(""))
     @Test fun `rejects negative value`() = assertNull(parsePriceInCents("-1,00"))
+
+    @Test
+    fun `formatted input remains parseable`() {
+        assertEquals(123_45L, parsePriceInCents(formatPriceInput("12345")))
+    }
 }

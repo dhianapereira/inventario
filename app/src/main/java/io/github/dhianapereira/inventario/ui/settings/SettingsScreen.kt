@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -132,22 +134,29 @@ private fun AboutPage(onBack: () -> Unit) {
 
 @Composable
 private fun SettingsPage(title: String, onBack: () -> Unit, content: @Composable () -> Unit) {
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.safeDrawing)
-            .padding(horizontal = 20.dp)
-            .verticalScroll(rememberScrollState()),
+            .padding(horizontal = 20.dp),
+        contentAlignment = androidx.compose.ui.Alignment.TopCenter,
     ) {
-        Spacer(Modifier.height(20.dp))
-        Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Outlined.ArrowBack, stringResource(R.string.back))
+        Column(
+            modifier = Modifier
+                .widthIn(max = 600.dp)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
+        ) {
+            Spacer(Modifier.height(20.dp))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, stringResource(R.string.back))
+                }
+                Text(title.uppercase(), style = MaterialTheme.typography.headlineLarge)
             }
-            Text(title.uppercase(), style = MaterialTheme.typography.headlineLarge)
+            Spacer(Modifier.height(24.dp))
+            content()
         }
-        Spacer(Modifier.height(24.dp))
-        content()
     }
 }
 
@@ -186,6 +195,8 @@ private fun <T> SelectionSheet(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        shape = androidx.compose.ui.graphics.RectangleShape,
+        dragHandle = null,
     ) {
         Text(
             title.uppercase(),

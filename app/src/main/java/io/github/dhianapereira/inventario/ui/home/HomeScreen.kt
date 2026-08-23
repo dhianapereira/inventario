@@ -16,9 +16,11 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -29,10 +31,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Category
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.AttachMoney
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Sell
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -54,12 +59,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.dhianapereira.inventario.R
+import io.github.dhianapereira.inventario.ui.components.IndustrialField
 import io.github.dhianapereira.inventario.model.Item
 import io.github.dhianapereira.inventario.model.ItemType
 import java.text.NumberFormat
@@ -95,13 +100,12 @@ private fun HomeScreen(
 ) {
     var editingItem by remember { mutableStateOf<Item?>(null) }
     var showItemForm by remember { mutableStateOf(false) }
-    var showTypes by remember { mutableStateOf(false) }
-    var returnToItemForm by remember { mutableStateOf(false) }
-    var search by remember { mutableStateOf(TextFieldValue("")) }
+    var showCategories by remember { mutableStateOf(false) }
+    var search by remember { mutableStateOf("") }
     var selectedTypeId by remember { mutableStateOf<String?>(null) }
     val visibleItems = state.items.filter { item ->
         (selectedTypeId == null || item.typeId == selectedTypeId) &&
-            item.name.contains(search.text, ignoreCase = true)
+            item.name.contains(search, ignoreCase = true)
     }
 
     if (showItemForm) {
@@ -112,40 +116,39 @@ private fun HomeScreen(
             onSave = { id, name, typeId, date, price ->
                 if (onSaveItem(id, name, typeId, date, price)) showItemForm = false
             },
-            onManageTypes = {
-                showItemForm = false
-                showTypes = true
-                returnToItemForm = true
-            },
+            onDelete = { id -> onDeleteItem(id); showItemForm = false },
         )
         return
     }
-    if (showTypes) {
-        TypesPage(
-            types = state.types,
-            onBack = {
-                showTypes = false
-                if (returnToItemForm) showItemForm = true
-                returnToItemForm = false
-            },
-            onCreate = onCreateType,
-            onUpdate = onUpdateType,
-            onDelete = onDeleteType,
-        )
-        return
-    }
+    androidx.activity.compose.BackHandler(enabled = showCategories) { showCategories = false }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets.safeDrawing,
         bottomBar = {
             IndustrialBottomBar(
-                onTypesClick = { returnToItemForm = false; showTypes = true },
+                categoriesSelected = showCategories,
+                onInventoryClick = { showCategories = false },
+                onTypesClick = { showCategories = true },
                 onMoreClick = onMoreClick,
             )
         },
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp)) {
+        Box(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentAlignment = androidx.compose.ui.Alignment.TopCenter,
+        ) {
+            if (showCategories) {
+                TypesContent(
+                    types = state.types,
+                    modifier = Modifier.widthIn(max = 680.dp),
+                    onCreate = onCreateType,
+                    onUpdate = onUpdateType,
+                    onDelete = onDeleteType,
+                )
+                return@Box
+            }
+            Column(Modifier.widthIn(max = 680.dp).fillMaxSize().padding(horizontal = 20.dp)) {
             Spacer(Modifier.height(20.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -166,13 +169,11 @@ private fun HomeScreen(
                 }
             }
             Spacer(Modifier.height(20.dp))
-            OutlinedTextField(
+            IndustrialField(
                 value = search,
                 onValueChange = { search = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                leadingIcon = { Icon(Icons.Outlined.Search, null) },
-                placeholder = { Text(stringResource(R.string.search_items).uppercase()) },
+                icon = Icons.Outlined.Search,
+                placeholder = stringResource(R.string.search_items).uppercase(),
             )
             Spacer(Modifier.height(14.dp))
             Row(
@@ -198,29 +199,29 @@ private fun HomeScreen(
                     Spacer(Modifier.height(8.dp))
                     Text(stringResource(R.string.no_items_description), style = MaterialTheme.typography.bodyMedium)
                 }
-            } else {
-            LazyColumn(
+                } else {
+                    LazyColumn(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     contentPadding = PaddingValues(bottom = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                    items(visibleItems, key = Item::id) { item ->
-                    ItemCard(
-                        item = item,
-                        type = state.types.find { it.id == item.typeId },
-                        onEdit = { editingItem = item; showItemForm = true },
-                        onDelete = { onDeleteItem(item.id) },
-                    )
+                    ) {
+                        items(visibleItems, key = Item::id) { item ->
+                            ItemCard(
+                                item = item,
+                                type = state.types.find { it.id == item.typeId },
+                                onEdit = { editingItem = item; showItemForm = true },
+                            )
+                        }
+                    }
                 }
             }
-        }
         }
     }
 
 }
 
 @Composable
-private fun ItemCard(item: Item, type: ItemType?, onEdit: () -> Unit, onDelete: () -> Unit) {
+private fun ItemCard(item: Item, type: ItemType?, onEdit: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
@@ -230,19 +231,6 @@ private fun ItemCard(item: Item, type: ItemType?, onEdit: () -> Unit, onDelete: 
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
         ) {
-            Box(
-                modifier = Modifier
-                    .size(width = 76.dp, height = 88.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = androidx.compose.ui.Alignment.Center,
-            ) {
-                Icon(
-                    Icons.Outlined.Inventory2,
-                    contentDescription = null,
-                    modifier = Modifier.size(38.dp),
-                )
-            }
-            Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                     Text(item.name.uppercase(), style = MaterialTheme.typography.titleLarge)
                     Spacer(Modifier.height(4.dp))
@@ -264,9 +252,6 @@ private fun ItemCard(item: Item, type: ItemType?, onEdit: () -> Unit, onDelete: 
                 Text(item.id.takeLast(4).uppercase(), style = MaterialTheme.typography.labelSmall)
                 Spacer(Modifier.height(12.dp))
                 Text("›", style = MaterialTheme.typography.headlineSmall)
-                TextButton(onClick = onDelete, contentPadding = PaddingValues(4.dp)) {
-                    Text(stringResource(R.string.delete).uppercase(), style = MaterialTheme.typography.labelSmall)
-                }
             }
         }
     }
@@ -289,7 +274,12 @@ private fun CategoryFilter(label: String, selected: Boolean, onClick: () -> Unit
 }
 
 @Composable
-private fun IndustrialBottomBar(onTypesClick: () -> Unit, onMoreClick: () -> Unit) {
+private fun IndustrialBottomBar(
+    categoriesSelected: Boolean,
+    onInventoryClick: () -> Unit,
+    onTypesClick: () -> Unit,
+    onMoreClick: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -298,8 +288,18 @@ private fun IndustrialBottomBar(onTypesClick: () -> Unit, onMoreClick: () -> Uni
             .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
-        BottomDestination(Icons.Outlined.Inventory2, stringResource(R.string.inventory), selected = true)
-        BottomDestination(Icons.Outlined.Category, stringResource(R.string.categories), onClick = onTypesClick)
+        BottomDestination(
+            Icons.Outlined.Inventory2,
+            stringResource(R.string.inventory),
+            selected = !categoriesSelected,
+            onClick = onInventoryClick,
+        )
+        BottomDestination(
+            Icons.Outlined.Category,
+            stringResource(R.string.categories),
+            selected = categoriesSelected,
+            onClick = onTypesClick,
+        )
         BottomDestination(Icons.Outlined.MoreHoriz, stringResource(R.string.more), onClick = onMoreClick)
     }
 }
@@ -329,21 +329,28 @@ private fun ItemFormPage(
     types: List<ItemType>,
     onBack: () -> Unit,
     onSave: (String?, String, String, String, String) -> Unit,
-    onManageTypes: () -> Unit,
+    onDelete: (String) -> Unit,
 ) {
     var name by remember { mutableStateOf(item?.name.orEmpty()) }
     var typeId by remember { mutableStateOf(item?.typeId ?: types.firstOrNull()?.id.orEmpty()) }
     var date by remember { mutableStateOf(item?.arrivalDate?.toString() ?: LocalDate.now().toString()) }
-    var price by remember { mutableStateOf(item?.let { "%.2f".format(it.purchasePriceInCents / 100.0) }.orEmpty()) }
+    var price by remember {
+        mutableStateOf(item?.let { formatPriceInput(it.purchasePriceInCents.toString()) }.orEmpty())
+    }
     var showTypeSheet by remember { mutableStateOf(false) }
     val selectedType = types.find { it.id == typeId }
     val valid = name.isNotBlank() && typeId.isNotBlank() &&
         runCatching { LocalDate.parse(date) }.isSuccess && parsePriceInCents(price) != null
 
     androidx.activity.compose.BackHandler(onBack = onBack)
-    Column(
-        modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 20.dp),
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .imePadding(),
+        contentAlignment = androidx.compose.ui.Alignment.TopCenter,
     ) {
+        Column(Modifier.widthIn(max = 680.dp).fillMaxSize().padding(horizontal = 20.dp)) {
         Spacer(Modifier.height(20.dp))
         EditorialHeader(
             title = stringResource(if (item == null) R.string.new_item else R.string.edit_item),
@@ -357,22 +364,48 @@ private fun ItemFormPage(
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
             FieldLabel(stringResource(R.string.name))
-            OutlinedTextField(name, { name = it }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            IndustrialField(name, { name = it }, isError = name.isNotEmpty() && name.isBlank())
             FieldLabel(stringResource(R.string.item_type))
-            OutlinedButton(onClick = { showTypeSheet = true }, modifier = Modifier.fillMaxWidth()) {
-                Text((selectedType?.name ?: stringResource(R.string.select_type)).uppercase())
-            }
-            TextButton(onClick = onManageTypes) {
-                Text(stringResource(if (types.isEmpty()) R.string.create_first_type else R.string.manage_types).uppercase())
-            }
+            IndustrialField(
+                value = (selectedType?.name ?: stringResource(R.string.select_type)).uppercase(),
+                onValueChange = {},
+                icon = Icons.Outlined.Sell,
+                readOnly = true,
+                isError = types.isEmpty(),
+                onClick = { showTypeSheet = true },
+            )
+            if (types.isEmpty()) ErrorText(stringResource(R.string.type_required))
             FieldLabel(stringResource(R.string.arrival_date))
-            OutlinedTextField(date, { date = it }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            IndustrialField(
+                date,
+                { date = it },
+                icon = Icons.Outlined.CalendarMonth,
+                isError = runCatching { LocalDate.parse(date) }.isFailure,
+            )
+            if (runCatching { LocalDate.parse(date) }.isFailure) ErrorText(stringResource(R.string.invalid_date))
             FieldLabel(stringResource(R.string.purchase_price))
-            OutlinedTextField(price, { price = it }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            IndustrialField(
+                price,
+                { price = formatPriceInput(it) },
+                icon = Icons.Outlined.AttachMoney,
+                isError = price.isNotEmpty() && parsePriceInCents(price) == null,
+            )
+            if (price.isNotEmpty() && parsePriceInCents(price) == null) ErrorText(stringResource(R.string.invalid_price))
+            if (item != null) {
+                OutlinedButton(
+                    onClick = { onDelete(item.id) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.delete_item).uppercase()) }
+            }
+        }
         }
     }
     if (showTypeSheet) {
-        ModalBottomSheet(onDismissRequest = { showTypeSheet = false }) {
+        ModalBottomSheet(
+            onDismissRequest = { showTypeSheet = false },
+            shape = androidx.compose.ui.graphics.RectangleShape,
+            dragHandle = null,
+        ) {
             Text(
                 stringResource(R.string.select_type).uppercase(),
                 style = MaterialTheme.typography.headlineSmall,
@@ -396,35 +429,43 @@ private fun ItemFormPage(
 }
 
 @Composable
-private fun TypesPage(
+private fun TypesContent(
     types: List<ItemType>,
-    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
     onCreate: (String) -> Unit,
     onUpdate: (ItemType, String) -> Unit,
     onDelete: (ItemType) -> Unit,
 ) {
     var name by remember { mutableStateOf("") }
     var editing by remember { mutableStateOf<ItemType?>(null) }
-    androidx.activity.compose.BackHandler(onBack = onBack)
     Column(
-        Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 20.dp),
+        modifier.fillMaxSize().imePadding().padding(horizontal = 20.dp),
     ) {
         Spacer(Modifier.height(20.dp))
-        EditorialHeader(stringResource(R.string.item_types), onBack)
-        Spacer(Modifier.height(32.dp))
+        Text(stringResource(R.string.item_types).uppercase(), style = MaterialTheme.typography.displaySmall)
+        Spacer(Modifier.height(24.dp))
         FieldLabel(stringResource(R.string.type_name))
         Spacer(Modifier.height(8.dp))
-        OutlinedTextField(name, { name = it }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        IndustrialField(name, { name = it })
         Spacer(Modifier.height(12.dp))
         Button(
             enabled = name.isNotBlank(),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            shape = androidx.compose.ui.graphics.RectangleShape,
             onClick = {
                 editing?.let { onUpdate(it, name) } ?: onCreate(name)
                 name = ""; editing = null
             },
-        ) { Text(stringResource(if (editing == null) R.string.add else R.string.save).uppercase()) }
+        ) {
+            Text(
+                (if (editing == null) "+  " else "") +
+                    stringResource(if (editing == null) R.string.add else R.string.save).uppercase(),
+                style = MaterialTheme.typography.titleMedium,
+            )
+        }
         Spacer(Modifier.height(28.dp))
+        Text(stringResource(R.string.all_types).uppercase(), style = MaterialTheme.typography.labelMedium)
+        Spacer(Modifier.height(10.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(types, key = ItemType::id) { type ->
                 Card(
@@ -452,11 +493,18 @@ private fun EditorialHeader(
     Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, stringResource(R.string.back)) }
         Text(title.uppercase(), modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
-        if (actionEnabled) {
-            IconButton(
-                onClick = onAction,
-                modifier = Modifier.background(MaterialTheme.colorScheme.primary),
-            ) { Icon(Icons.Outlined.Check, stringResource(R.string.save), tint = MaterialTheme.colorScheme.onPrimary) }
+        IconButton(
+            onClick = onAction,
+            enabled = actionEnabled,
+            modifier = Modifier.background(
+                if (actionEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+            ),
+        ) {
+            Icon(
+                Icons.Outlined.Check,
+                stringResource(R.string.save),
+                tint = if (actionEnabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -464,4 +512,9 @@ private fun EditorialHeader(
 @Composable
 private fun FieldLabel(text: String) {
     Text(text.uppercase(), style = MaterialTheme.typography.labelMedium)
+}
+
+@Composable
+private fun ErrorText(text: String) {
+    Text(text, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
 }

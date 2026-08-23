@@ -11,6 +11,10 @@
     <string name="create_first_type">Create the first type</string>
     <string name="manage_types">Manage types</string>
     <string name="item_type">Item type</string>
+    <string name="all_types">All item types</string>
+    <string name="type_required">Create a type before adding an item.</string>
+    <string name="invalid_date">Enter a valid date using YYYY-MM-DD.</string>
+    <string name="invalid_price">Enter a valid monetary value.</string>
     <string name="arrival_date">Arrival date (YYYY-MM-DD)</string>
     <string name="purchase_price">Purchase price</string>
     <string name="type_name">Type name</string>
@@ -19,6 +23,7 @@
     <string name="save">Save</string>
     <string name="add">Add</string>
     <string name="delete">Delete</string>
+    <string name="delete_item">Delete item</string>
     <string name="cancel">Cancel</string>
     <string name="close">Close</string>
     <string name="search_items">Search belongings…</string>
