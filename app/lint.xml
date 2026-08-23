@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- The supplied brand artwork is intentionally a density-independent bitmap. -->
+    <issue id="IconLauncherShape,IconLocation">
+        <ignore path="src/main/res/drawable-nodpi/logo.png" />
+    </issue>
+</lint>

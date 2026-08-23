@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Inventario" parent="android:style/Theme.Material.Light.NoActionBar">
+    <style name="Theme.Inventario" parent="Theme.AppCompat.DayNight.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:colorAccent">#151515</item>
         <item name="android:navigationBarColor">#F7F5F0</item>
