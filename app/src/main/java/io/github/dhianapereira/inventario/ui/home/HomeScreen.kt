@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -349,18 +350,23 @@ private fun StatusFilterTag(
 ) {
     val background = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
     val content = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onBackground
-    Text(
-        text = label.uppercase(),
+    Box(
         modifier = modifier
+            .heightIn(min = 48.dp)
             .background(background)
             .border(1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 6.dp, vertical = 10.dp),
-        color = content,
-        style = MaterialTheme.typography.labelSmall,
-        textAlign = TextAlign.Center,
-        maxLines = 1,
-    )
+            .clickable(onClick = onClick),
+        contentAlignment = androidx.compose.ui.Alignment.Center,
+    ) {
+        Text(
+            text = label.uppercase(),
+            modifier = Modifier.padding(horizontal = 6.dp),
+            color = content,
+            style = MaterialTheme.typography.labelSmall,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+        )
+    }
 }
 
 @Composable
