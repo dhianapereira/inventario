@@ -8,13 +8,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -35,8 +32,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -51,6 +46,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.dhianapereira.inventario.R
+import io.github.dhianapereira.inventario.ui.components.IndustrialBottomSheet
+import io.github.dhianapereira.inventario.ui.components.IndustrialSheetOption
 import io.github.dhianapereira.inventario.model.AppLanguage
 import io.github.dhianapereira.inventario.model.AppTheme
 
@@ -67,7 +64,7 @@ fun SettingsRoute(
     var page by rememberSaveable { mutableStateOf(SettingsPage.MAIN) }
     BackHandler { if (page == SettingsPage.MAIN) onBack() else page = SettingsPage.MAIN }
     when (page) {
-        SettingsPage.MAIN -> SettingsPage(stringResource(R.string.settings), onBack) {
+        SettingsPage.MAIN -> SettingsPage(stringResource(R.string.settings), null) {
             SettingsRow(Icons.Outlined.Tune, stringResource(R.string.preferences), stringResource(R.string.preferences_description)) { page = SettingsPage.PREFERENCES }
             SettingsRow(Icons.Outlined.Folder, stringResource(R.string.data_and_backup), stringResource(R.string.backup_description)) { page = SettingsPage.DATA }
             SettingsRow(Icons.Outlined.Gavel, stringResource(R.string.legal), stringResource(R.string.legal_description)) { page = SettingsPage.LEGAL }
@@ -133,26 +130,34 @@ private fun AboutPage(onBack: () -> Unit) {
 }
 
 @Composable
-private fun SettingsPage(title: String, onBack: () -> Unit, content: @Composable () -> Unit) {
+private fun SettingsPage(title: String, onBack: (() -> Unit)?, content: @Composable () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.safeDrawing)
             .padding(horizontal = 20.dp),
         contentAlignment = androidx.compose.ui.Alignment.TopCenter,
     ) {
         Column(
             modifier = Modifier
-                .widthIn(max = 600.dp)
+                .widthIn(max = 680.dp)
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState()),
         ) {
             Spacer(Modifier.height(20.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, stringResource(R.string.back))
+                if (onBack != null) {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, stringResource(R.string.back))
+                    }
                 }
-                Text(title.uppercase(), style = MaterialTheme.typography.headlineLarge)
+                Text(
+                    title.uppercase(),
+                    style = if (onBack == null) {
+                        MaterialTheme.typography.displaySmall
+                    } else {
+                        MaterialTheme.typography.titleLarge
+                    },
+                )
             }
             Spacer(Modifier.height(24.dp))
             content()
@@ -193,26 +198,10 @@ private fun <T> SelectionSheet(
     onSelect: (T) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        shape = androidx.compose.ui.graphics.RectangleShape,
-        dragHandle = null,
-    ) {
-        Text(
-            title.uppercase(),
-            style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
-        )
+    IndustrialBottomSheet(title = title, onDismiss = onDismiss) {
         options.forEach { option ->
-            Row(
-                Modifier.fillMaxWidth().clickable { onSelect(option) }.padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            ) {
-                RadioButton(option == selected, { onSelect(option) })
-                Text(label(option).uppercase())
-            }
+            IndustrialSheetOption(label(option), option == selected) { onSelect(option) }
         }
-        Spacer(Modifier.height(24.dp))
     }
 }
 

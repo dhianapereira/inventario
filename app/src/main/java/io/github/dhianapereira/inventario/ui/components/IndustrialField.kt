@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -32,6 +33,7 @@ fun IndustrialField(
     readOnly: Boolean = false,
     isError: Boolean = false,
     onClick: (() -> Unit)? = null,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
 ) {
     val clickModifier = if (onClick == null) Modifier else Modifier.clickable(
         interactionSource = remember { MutableInteractionSource() },
@@ -65,6 +67,7 @@ fun IndustrialField(
             readOnly = readOnly,
             enabled = onClick == null,
             singleLine = true,
+            keyboardOptions = keyboardOptions,
             textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
             decorationBox = { inner ->

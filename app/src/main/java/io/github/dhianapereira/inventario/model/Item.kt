@@ -6,7 +6,7 @@ import java.time.Period
 data class Item(
     val id: String,
     val name: String,
-    val typeId: String,
+    val categoryId: String,
     val arrivalDate: LocalDate,
     val purchasePriceInCents: Long,
 ) {

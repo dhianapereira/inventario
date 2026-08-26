@@ -1,6 +1,6 @@
 package io.github.dhianapereira.inventario.model
 
-data class ItemType(
+data class Category(
     val id: String,
     val name: String,
 )

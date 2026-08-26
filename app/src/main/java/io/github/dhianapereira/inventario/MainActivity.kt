@@ -10,9 +10,6 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -39,14 +36,13 @@ class MainActivity : AppCompatActivity() {
                 AppTheme.DARK -> true
             }
             val language = AppLanguage.fromCode(LocalConfiguration.current.locales[0].language)
-            var showSettings by rememberSaveable { mutableStateOf(false) }
             InventarioTheme(darkTheme = darkTheme) {
                 Surface(color = MaterialTheme.colorScheme.background) {
-                    if (showSettings) {
+                    HomeRoute(settingsContent = { onBack ->
                         SettingsRoute(
                             theme = theme,
                             language = language,
-                            onBack = { showSettings = false },
+                            onBack = onBack,
                             onThemeSelected = themeViewModel::setTheme,
                             onLanguageSelected = { selected ->
                                 AppCompatDelegate.setApplicationLocales(
@@ -54,9 +50,7 @@ class MainActivity : AppCompatActivity() {
                                 )
                             },
                         )
-                    } else {
-                        HomeRoute(onMoreClick = { showSettings = true })
-                    }
+                    })
                 }
             }
         }

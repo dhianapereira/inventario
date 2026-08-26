@@ -4,9 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.dhianapereira.inventario.data.item.ItemRepository
-import io.github.dhianapereira.inventario.data.type.ItemTypeRepository
+import io.github.dhianapereira.inventario.data.category.CategoryRepository
 import io.github.dhianapereira.inventario.model.Item
-import io.github.dhianapereira.inventario.model.ItemType
+import io.github.dhianapereira.inventario.model.Category
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.text.DecimalFormatSymbols
@@ -20,17 +20,17 @@ import kotlinx.coroutines.launch
 
 data class HomeUiState(
     val items: List<Item> = emptyList(),
-    val types: List<ItemType> = emptyList(),
+    val categories: List<Category> = emptyList(),
 )
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val itemRepository: ItemRepository,
-    private val typeRepository: ItemTypeRepository,
+    private val categoryRepository: CategoryRepository,
 ) : ViewModel() {
     val uiState: StateFlow<HomeUiState> = combine(
         itemRepository.observeItems(),
-        typeRepository.observeTypes(),
+        categoryRepository.observeCategories(),
         ::HomeUiState,
     ).stateIn(
         scope = viewModelScope,
@@ -38,16 +38,16 @@ class HomeViewModel @Inject constructor(
         initialValue = HomeUiState(),
     )
 
-    fun saveItem(id: String?, name: String, typeId: String, date: String, price: String): Boolean {
-        if (name.isBlank() || typeId.isBlank()) return false
+    fun saveItem(id: String?, name: String, categoryId: String, date: String, price: String): Boolean {
+        if (name.isBlank() || categoryId.isBlank()) return false
         val arrivalDate = runCatching { LocalDate.parse(date) }.getOrNull() ?: return false
         val cents = parsePriceInCents(price) ?: return false
         viewModelScope.launch {
             runCatching {
                 if (id == null) {
-                    itemRepository.createItem(name, typeId, arrivalDate, cents)
+                    itemRepository.createItem(name, categoryId, arrivalDate, cents)
                 } else {
-                    itemRepository.updateItem(Item(id, name, typeId, arrivalDate, cents))
+                    itemRepository.updateItem(Item(id, name, categoryId, arrivalDate, cents))
                 }
             }
         }
@@ -56,13 +56,13 @@ class HomeViewModel @Inject constructor(
 
     fun deleteItem(id: String) = viewModelScope.launch { itemRepository.deleteItem(id) }
 
-    fun createType(name: String) = viewModelScope.launch { typeRepository.createType(name) }
+    fun createCategory(name: String) = viewModelScope.launch { categoryRepository.createCategory(name) }
 
-    fun updateType(type: ItemType, name: String) = viewModelScope.launch {
-        typeRepository.updateType(type.copy(name = name))
+    fun updateCategory(category: Category, name: String) = viewModelScope.launch {
+        categoryRepository.updateCategory(category.copy(name = name))
     }
 
-    fun deleteType(type: ItemType) = viewModelScope.launch { typeRepository.deleteType(type) }
+    fun deleteCategory(category: Category) = viewModelScope.launch { categoryRepository.deleteCategory(category) }
 }
 
 internal fun parsePriceInCents(value: String): Long? {

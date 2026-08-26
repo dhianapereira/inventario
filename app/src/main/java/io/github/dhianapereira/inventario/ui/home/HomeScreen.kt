@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Category
@@ -45,12 +46,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,20 +59,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.dhianapereira.inventario.R
 import io.github.dhianapereira.inventario.ui.components.IndustrialField
+import io.github.dhianapereira.inventario.ui.components.IndustrialBottomSheet
+import io.github.dhianapereira.inventario.ui.components.IndustrialSheetOption
 import io.github.dhianapereira.inventario.model.Item
-import io.github.dhianapereira.inventario.model.ItemType
+import io.github.dhianapereira.inventario.model.Category
 import java.text.NumberFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 @Composable
 fun HomeRoute(
-    onMoreClick: () -> Unit,
+    settingsContent: @Composable (onBack: () -> Unit) -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -81,10 +83,10 @@ fun HomeRoute(
         state = state,
         onSaveItem = viewModel::saveItem,
         onDeleteItem = viewModel::deleteItem,
-        onCreateType = viewModel::createType,
-        onUpdateType = viewModel::updateType,
-        onDeleteType = viewModel::deleteType,
-        onMoreClick = onMoreClick,
+        onCreateCategory = viewModel::createCategory,
+        onUpdateCategory = viewModel::updateCategory,
+        onDeleteCategory = viewModel::deleteCategory,
+        settingsContent = settingsContent,
     )
 }
 
@@ -93,44 +95,46 @@ private fun HomeScreen(
     state: HomeUiState,
     onSaveItem: (String?, String, String, String, String) -> Boolean,
     onDeleteItem: (String) -> Unit,
-    onCreateType: (String) -> Unit,
-    onUpdateType: (ItemType, String) -> Unit,
-    onDeleteType: (ItemType) -> Unit,
-    onMoreClick: () -> Unit,
+    onCreateCategory: (String) -> Unit,
+    onUpdateCategory: (Category, String) -> Unit,
+    onDeleteCategory: (Category) -> Unit,
+    settingsContent: @Composable (onBack: () -> Unit) -> Unit,
 ) {
     var editingItem by remember { mutableStateOf<Item?>(null) }
     var showItemForm by remember { mutableStateOf(false) }
-    var showCategories by remember { mutableStateOf(false) }
+    var section by remember { mutableStateOf(HomeSection.INVENTORY) }
     var search by remember { mutableStateOf("") }
-    var selectedTypeId by remember { mutableStateOf<String?>(null) }
+    var selectedCategoryId by remember { mutableStateOf<String?>(null) }
     val visibleItems = state.items.filter { item ->
-        (selectedTypeId == null || item.typeId == selectedTypeId) &&
+        (selectedCategoryId == null || item.categoryId == selectedCategoryId) &&
             item.name.contains(search, ignoreCase = true)
     }
 
     if (showItemForm) {
         ItemFormPage(
             item = editingItem,
-            types = state.types,
+            categories = state.categories,
             onBack = { showItemForm = false },
-            onSave = { id, name, typeId, date, price ->
-                if (onSaveItem(id, name, typeId, date, price)) showItemForm = false
+            onSave = { id, name, categoryId, date, price ->
+                if (onSaveItem(id, name, categoryId, date, price)) showItemForm = false
             },
             onDelete = { id -> onDeleteItem(id); showItemForm = false },
         )
         return
     }
-    androidx.activity.compose.BackHandler(enabled = showCategories) { showCategories = false }
+    androidx.activity.compose.BackHandler(enabled = section != HomeSection.INVENTORY) {
+        section = HomeSection.INVENTORY
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets.safeDrawing,
         bottomBar = {
             IndustrialBottomBar(
-                categoriesSelected = showCategories,
-                onInventoryClick = { showCategories = false },
-                onTypesClick = { showCategories = true },
-                onMoreClick = onMoreClick,
+                selected = section,
+                onInventoryClick = { section = HomeSection.INVENTORY },
+                onCategoriesClick = { section = HomeSection.CATEGORIES },
+                onMoreClick = { section = HomeSection.MORE },
             )
         },
     ) { padding ->
@@ -138,14 +142,18 @@ private fun HomeScreen(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentAlignment = androidx.compose.ui.Alignment.TopCenter,
         ) {
-            if (showCategories) {
-                TypesContent(
-                    types = state.types,
+            if (section == HomeSection.CATEGORIES) {
+                CategoriesContent(
+                    categories = state.categories,
                     modifier = Modifier.widthIn(max = 680.dp),
-                    onCreate = onCreateType,
-                    onUpdate = onUpdateType,
-                    onDelete = onDeleteType,
+                    onCreate = onCreateCategory,
+                    onUpdate = onUpdateCategory,
+                    onDelete = onDeleteCategory,
                 )
+                return@Box
+            }
+            if (section == HomeSection.MORE) {
+                settingsContent { section = HomeSection.INVENTORY }
                 return@Box
             }
             Column(Modifier.widthIn(max = 680.dp).fillMaxSize().padding(horizontal = 20.dp)) {
@@ -182,11 +190,11 @@ private fun HomeScreen(
             ) {
                 CategoryFilter(
                     label = stringResource(R.string.all),
-                    selected = selectedTypeId == null,
-                    onClick = { selectedTypeId = null },
+                    selected = selectedCategoryId == null,
+                    onClick = { selectedCategoryId = null },
                 )
-                state.types.forEach { type ->
-                    CategoryFilter(type.name, selectedTypeId == type.id) { selectedTypeId = type.id }
+                state.categories.forEach { category ->
+                    CategoryFilter(category.name, selectedCategoryId == category.id) { selectedCategoryId = category.id }
                 }
             }
             Spacer(Modifier.height(14.dp))
@@ -208,7 +216,7 @@ private fun HomeScreen(
                         items(visibleItems, key = Item::id) { item ->
                             ItemCard(
                                 item = item,
-                                type = state.types.find { it.id == item.typeId },
+                                category = state.categories.find { it.id == item.categoryId },
                                 onEdit = { editingItem = item; showItemForm = true },
                             )
                         }
@@ -221,7 +229,7 @@ private fun HomeScreen(
 }
 
 @Composable
-private fun ItemCard(item: Item, type: ItemType?, onEdit: () -> Unit) {
+private fun ItemCard(item: Item, category: Category?, onEdit: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
@@ -235,7 +243,7 @@ private fun ItemCard(item: Item, type: ItemType?, onEdit: () -> Unit) {
                     Text(item.name.uppercase(), style = MaterialTheme.typography.titleLarge)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        (type?.name ?: stringResource(R.string.unknown_type)).uppercase(),
+                        (category?.name ?: stringResource(R.string.unknown_category)).uppercase(),
                         style = MaterialTheme.typography.labelSmall,
                     )
                     Spacer(Modifier.height(8.dp))
@@ -275,32 +283,36 @@ private fun CategoryFilter(label: String, selected: Boolean, onClick: () -> Unit
 
 @Composable
 private fun IndustrialBottomBar(
-    categoriesSelected: Boolean,
+    selected: HomeSection,
     onInventoryClick: () -> Unit,
-    onTypesClick: () -> Unit,
+    onCategoriesClick: () -> Unit,
     onMoreClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
-            .border(BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant))
             .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
         BottomDestination(
             Icons.Outlined.Inventory2,
             stringResource(R.string.inventory),
-            selected = !categoriesSelected,
+            selected = selected == HomeSection.INVENTORY,
             onClick = onInventoryClick,
         )
         BottomDestination(
             Icons.Outlined.Category,
             stringResource(R.string.categories),
-            selected = categoriesSelected,
-            onClick = onTypesClick,
+            selected = selected == HomeSection.CATEGORIES,
+            onClick = onCategoriesClick,
         )
-        BottomDestination(Icons.Outlined.MoreHoriz, stringResource(R.string.more), onClick = onMoreClick)
+        BottomDestination(
+            Icons.Outlined.MoreHoriz,
+            stringResource(R.string.more),
+            selected = selected == HomeSection.MORE,
+            onClick = onMoreClick,
+        )
     }
 }
 
@@ -312,34 +324,47 @@ private fun BottomDestination(
     onClick: () -> Unit = {},
 ) {
     Column(
-        modifier = Modifier.width(80.dp).clickable(onClick = onClick).padding(vertical = 4.dp),
+        modifier = Modifier
+            .width(96.dp)
+            .background(
+                if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+            )
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
         horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
     ) {
-        Icon(icon, contentDescription = label, modifier = Modifier.size(24.dp))
+        val color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+        Icon(icon, contentDescription = label, modifier = Modifier.size(24.dp), tint = color)
         Spacer(Modifier.height(4.dp))
-        Text(label.uppercase(), style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center)
-        if (selected) Spacer(Modifier.height(3.dp).fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.primary))
+        Text(
+            label.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            color = color,
+            textAlign = TextAlign.Center,
+        )
     }
 }
+
+private enum class HomeSection { INVENTORY, CATEGORIES, MORE }
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 private fun ItemFormPage(
     item: Item?,
-    types: List<ItemType>,
+    categories: List<Category>,
     onBack: () -> Unit,
     onSave: (String?, String, String, String, String) -> Unit,
     onDelete: (String) -> Unit,
 ) {
     var name by remember { mutableStateOf(item?.name.orEmpty()) }
-    var typeId by remember { mutableStateOf(item?.typeId ?: types.firstOrNull()?.id.orEmpty()) }
+    var categoryId by remember { mutableStateOf(item?.categoryId ?: categories.firstOrNull()?.id.orEmpty()) }
     var date by remember { mutableStateOf(item?.arrivalDate?.toString() ?: LocalDate.now().toString()) }
     var price by remember {
         mutableStateOf(item?.let { formatPriceInput(it.purchasePriceInCents.toString()) }.orEmpty())
     }
-    var showTypeSheet by remember { mutableStateOf(false) }
-    val selectedType = types.find { it.id == typeId }
-    val valid = name.isNotBlank() && typeId.isNotBlank() &&
+    var showCategorySheet by remember { mutableStateOf(false) }
+    val selectedCategory = categories.find { it.id == categoryId }
+    val valid = name.isNotBlank() && categoryId.isNotBlank() &&
         runCatching { LocalDate.parse(date) }.isSuccess && parsePriceInCents(price) != null
 
     androidx.activity.compose.BackHandler(onBack = onBack)
@@ -356,25 +381,25 @@ private fun ItemFormPage(
             title = stringResource(if (item == null) R.string.new_item else R.string.edit_item),
             onBack = onBack,
             actionEnabled = valid,
-            onAction = { onSave(item?.id, name, typeId, date, price) },
+            onAction = { onSave(item?.id, name, categoryId, date, price) },
         )
         Spacer(Modifier.height(32.dp))
         Column(
-            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+            modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
             FieldLabel(stringResource(R.string.name))
             IndustrialField(name, { name = it }, isError = name.isNotEmpty() && name.isBlank())
-            FieldLabel(stringResource(R.string.item_type))
+            FieldLabel(stringResource(R.string.item_category))
             IndustrialField(
-                value = (selectedType?.name ?: stringResource(R.string.select_type)).uppercase(),
+                value = (selectedCategory?.name ?: stringResource(R.string.select_category)).uppercase(),
                 onValueChange = {},
                 icon = Icons.Outlined.Sell,
                 readOnly = true,
-                isError = types.isEmpty(),
-                onClick = { showTypeSheet = true },
+                isError = categories.isEmpty(),
+                onClick = { showCategorySheet = true },
             )
-            if (types.isEmpty()) ErrorText(stringResource(R.string.type_required))
+            if (categories.isEmpty()) ErrorText(stringResource(R.string.category_required))
             FieldLabel(stringResource(R.string.arrival_date))
             IndustrialField(
                 date,
@@ -389,62 +414,62 @@ private fun ItemFormPage(
                 { price = formatPriceInput(it) },
                 icon = Icons.Outlined.AttachMoney,
                 isError = price.isNotEmpty() && parsePriceInCents(price) == null,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             )
             if (price.isNotEmpty() && parsePriceInCents(price) == null) ErrorText(stringResource(R.string.invalid_price))
             if (item != null) {
                 OutlinedButton(
                     onClick = { onDelete(item.id) },
                     modifier = Modifier.fillMaxWidth(),
+                    shape = androidx.compose.ui.graphics.RectangleShape,
                 ) { Text(stringResource(R.string.delete_item).uppercase()) }
             }
         }
         }
     }
-    if (showTypeSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showTypeSheet = false },
-            shape = androidx.compose.ui.graphics.RectangleShape,
-            dragHandle = null,
+    if (showCategorySheet) {
+        IndustrialBottomSheet(
+            title = stringResource(R.string.select_category),
+            onDismiss = { showCategorySheet = false },
         ) {
-            Text(
-                stringResource(R.string.select_type).uppercase(),
-                style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
-            )
-            types.forEach { type ->
-                Row(
+            if (categories.isEmpty()) {
+                Text(
+                    stringResource(R.string.no_categories_available),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { typeId = type.id; showTypeSheet = false }
-                        .padding(horizontal = 24.dp, vertical = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(type.name.uppercase(), style = MaterialTheme.typography.titleMedium)
-                    if (type.id == typeId) Icon(Icons.Outlined.Check, null)
+                        .border(BorderStroke(1.dp, MaterialTheme.colorScheme.outline))
+                        .padding(horizontal = 16.dp, vertical = 24.dp),
+                )
+            }
+            categories.forEach { category ->
+                IndustrialSheetOption(category.name, category.id == categoryId) {
+                    categoryId = category.id
+                    showCategorySheet = false
                 }
             }
-            Spacer(Modifier.height(24.dp))
         }
     }
 }
 
 @Composable
-private fun TypesContent(
-    types: List<ItemType>,
+private fun CategoriesContent(
+    categories: List<Category>,
     modifier: Modifier = Modifier,
     onCreate: (String) -> Unit,
-    onUpdate: (ItemType, String) -> Unit,
-    onDelete: (ItemType) -> Unit,
+    onUpdate: (Category, String) -> Unit,
+    onDelete: (Category) -> Unit,
 ) {
     var name by remember { mutableStateOf("") }
-    var editing by remember { mutableStateOf<ItemType?>(null) }
+    var editing by remember { mutableStateOf<Category?>(null) }
     Column(
         modifier.fillMaxSize().imePadding().padding(horizontal = 20.dp),
     ) {
         Spacer(Modifier.height(20.dp))
-        Text(stringResource(R.string.item_types).uppercase(), style = MaterialTheme.typography.displaySmall)
+        Text(stringResource(R.string.categories).uppercase(), style = MaterialTheme.typography.displaySmall)
         Spacer(Modifier.height(24.dp))
-        FieldLabel(stringResource(R.string.type_name))
+        FieldLabel(stringResource(R.string.category_name))
         Spacer(Modifier.height(8.dp))
         IndustrialField(name, { name = it })
         Spacer(Modifier.height(12.dp))
@@ -453,32 +478,87 @@ private fun TypesContent(
             modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = androidx.compose.ui.graphics.RectangleShape,
             onClick = {
-                editing?.let { onUpdate(it, name) } ?: onCreate(name)
-                name = ""; editing = null
+                onCreate(name)
+                name = ""
             },
         ) {
             Text(
-                (if (editing == null) "+  " else "") +
-                    stringResource(if (editing == null) R.string.add else R.string.save).uppercase(),
+                "+  " + stringResource(R.string.add).uppercase(),
                 style = MaterialTheme.typography.titleMedium,
             )
         }
         Spacer(Modifier.height(28.dp))
-        Text(stringResource(R.string.all_types).uppercase(), style = MaterialTheme.typography.labelMedium)
+        Text(stringResource(R.string.all_categories).uppercase(), style = MaterialTheme.typography.labelMedium)
         Spacer(Modifier.height(10.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(types, key = ItemType::id) { type ->
+        LazyColumn(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            contentPadding = PaddingValues(bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items(categories, key = Category::id) { category ->
                 Card(
-                    modifier = Modifier.fillMaxWidth().clickable { editing = type; name = type.name },
+                    modifier = Modifier.fillMaxWidth().clickable { editing = category },
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 ) {
                     Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(type.name.uppercase(), style = MaterialTheme.typography.titleMedium)
-                        TextButton(onClick = { onDelete(type) }) { Text(stringResource(R.string.delete).uppercase()) }
+                        Text(category.name.uppercase(), style = MaterialTheme.typography.titleMedium)
+                        Text("›", style = MaterialTheme.typography.headlineSmall)
                     }
                 }
             }
+        }
+    }
+    editing?.let { category ->
+        CategoryEditSheet(
+            category = category,
+            onDismiss = { editing = null },
+            onSave = { updatedName ->
+                onUpdate(category, updatedName)
+                editing = null
+            },
+            onDelete = {
+                onDelete(category)
+                editing = null
+            },
+        )
+    }
+}
+
+@Composable
+private fun CategoryEditSheet(
+    category: Category,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit,
+    onDelete: () -> Unit,
+) {
+    var name by remember(category.id) { mutableStateOf(category.name) }
+    IndustrialBottomSheet(
+        title = stringResource(R.string.edit_category),
+        onDismiss = onDismiss,
+    ) {
+        FieldLabel(stringResource(R.string.category_name))
+        Spacer(Modifier.height(8.dp))
+        IndustrialField(name, { name = it })
+        Spacer(Modifier.height(16.dp))
+        Button(
+            onClick = { onSave(name) },
+            enabled = name.isNotBlank(),
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            shape = androidx.compose.ui.graphics.RectangleShape,
+        ) { Text(stringResource(R.string.save).uppercase()) }
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = onDismiss,
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            shape = androidx.compose.ui.graphics.RectangleShape,
+        ) { Text(stringResource(R.string.cancel).uppercase()) }
+        OutlinedButton(
+            onClick = onDelete,
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            shape = androidx.compose.ui.graphics.RectangleShape,
+        ) {
+            Text(stringResource(R.string.delete).uppercase(), color = MaterialTheme.colorScheme.error)
         }
     }
 }

@@ -9,7 +9,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import io.github.dhianapereira.inventario.data.database.InventarioDatabase
 import io.github.dhianapereira.inventario.data.item.ItemDao
-import io.github.dhianapereira.inventario.data.type.ItemTypeDao
+import io.github.dhianapereira.inventario.data.category.CategoryDao
 import javax.inject.Singleton
 
 @Module
@@ -22,12 +22,15 @@ object DatabaseModule {
             context,
             InventarioDatabase::class.java,
             "inventario.db",
-        ).addMigrations(InventarioDatabase.Migration1To2).build()
+        ).addMigrations(
+            InventarioDatabase.Migration1To2,
+            InventarioDatabase.Migration2To3,
+        ).build()
     }
 
     @Provides
     fun provideItemDao(database: InventarioDatabase): ItemDao = database.itemDao()
 
     @Provides
-    fun provideItemTypeDao(database: InventarioDatabase): ItemTypeDao = database.itemTypeDao()
+    fun provideCategoryDao(database: InventarioDatabase): CategoryDao = database.categoryDao()
 }

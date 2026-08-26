@@ -8,19 +8,19 @@ import java.time.LocalDate
 
 @Entity(
     tableName = "items",
-    indices = [Index("typeId")],
+    indices = [Index("categoryId")],
 )
 data class ItemEntity(
     @PrimaryKey val id: String,
     val name: String,
-    val typeId: String,
+    val categoryId: String,
     val arrivalDateEpochDay: Long,
     val purchasePriceInCents: Long,
 ) {
     fun toModel() = Item(
         id = id,
         name = name,
-        typeId = typeId,
+        categoryId = categoryId,
         arrivalDate = LocalDate.ofEpochDay(arrivalDateEpochDay),
         purchasePriceInCents = purchasePriceInCents,
     )
@@ -29,7 +29,7 @@ data class ItemEntity(
         fun fromModel(item: Item) = ItemEntity(
             id = item.id,
             name = item.name,
-            typeId = item.typeId,
+            categoryId = item.categoryId,
             arrivalDateEpochDay = item.arrivalDate.toEpochDay(),
             purchasePriceInCents = item.purchasePriceInCents,
         )

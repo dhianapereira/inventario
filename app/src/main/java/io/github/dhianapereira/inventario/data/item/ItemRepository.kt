@@ -21,18 +21,18 @@ class ItemRepository @Inject constructor(
 
     suspend fun createItem(
         name: String,
-        typeId: String,
+        categoryId: String,
         arrivalDate: java.time.LocalDate,
         purchasePriceInCents: Long,
     ): String {
         require(name.isNotBlank()) { "Item name cannot be blank" }
-        require(typeId.isNotBlank()) { "Item type cannot be blank" }
+        require(categoryId.isNotBlank()) { "Item category cannot be blank" }
         require(purchasePriceInCents >= 0) { "Purchase price cannot be negative" }
 
         val item = Item(
             id = UUID.randomUUID().toString(),
             name = name.trim(),
-            typeId = typeId,
+            categoryId = categoryId,
             arrivalDate = arrivalDate,
             purchasePriceInCents = purchasePriceInCents,
         )
@@ -42,7 +42,7 @@ class ItemRepository @Inject constructor(
 
     suspend fun updateItem(item: Item): Boolean {
         require(item.name.isNotBlank()) { "Item name cannot be blank" }
-        require(item.typeId.isNotBlank()) { "Item type cannot be blank" }
+        require(item.categoryId.isNotBlank()) { "Item category cannot be blank" }
         require(item.purchasePriceInCents >= 0) { "Purchase price cannot be negative" }
         return itemDao.update(ItemEntity.fromModel(item.copy(name = item.name.trim()))) > 0
     }

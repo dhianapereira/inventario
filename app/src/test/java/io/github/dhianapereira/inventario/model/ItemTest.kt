@@ -10,7 +10,7 @@ class ItemTest {
         val item = Item(
             id = "item-1",
             name = "Headphones",
-            typeId = "electronics",
+            categoryId = "electronics",
             arrivalDate = LocalDate.of(2022, 3, 12),
             purchasePriceInCents = 189_900,
         )
