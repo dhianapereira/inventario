@@ -5,6 +5,15 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.dhianapereira.inventario.data.item.ItemRepository
 import io.github.dhianapereira.inventario.data.category.CategoryRepository
+import io.github.dhianapereira.inventario.data.itemclosure.ItemClosureRepository
+import io.github.dhianapereira.inventario.data.itemupdate.ItemUpdateRepository
+import io.github.dhianapereira.inventario.model.ClosureReason
+import io.github.dhianapereira.inventario.model.ItemClosure
+import io.github.dhianapereira.inventario.model.ItemUpdate
+import io.github.dhianapereira.inventario.model.ItemCurrency
+import io.github.dhianapereira.inventario.model.isClosureDateValid
+import io.github.dhianapereira.inventario.model.isUpdateDateValid
+import io.github.dhianapereira.inventario.model.normalizedOptional
 import io.github.dhianapereira.inventario.model.Item
 import io.github.dhianapereira.inventario.model.Category
 import java.math.BigDecimal
@@ -17,20 +26,30 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
 
 data class HomeUiState(
     val items: List<Item> = emptyList(),
     val categories: List<Category> = emptyList(),
+    val updates: List<ItemUpdate> = emptyList(),
+    val closures: List<ItemClosure> = emptyList(),
 )
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val itemRepository: ItemRepository,
     private val categoryRepository: CategoryRepository,
+    private val itemUpdateRepository: ItemUpdateRepository,
+    private val itemClosureRepository: ItemClosureRepository,
 ) : ViewModel() {
     val uiState: StateFlow<HomeUiState> = combine(
         itemRepository.observeItems(),
         categoryRepository.observeCategories(),
+        itemUpdateRepository.observeAll(),
+        itemClosureRepository.observeAll(),
         ::HomeUiState,
     ).stateIn(
         scope = viewModelScope,
@@ -38,16 +57,26 @@ class HomeViewModel @Inject constructor(
         initialValue = HomeUiState(),
     )
 
-    fun saveItem(id: String?, name: String, categoryId: String, date: String, price: String): Boolean {
+    fun saveItem(
+        id: String?,
+        name: String,
+        categoryId: String,
+        date: String,
+        price: String,
+        currency: ItemCurrency,
+        description: String,
+    ): Boolean {
         if (name.isBlank() || categoryId.isBlank()) return false
         val arrivalDate = runCatching { LocalDate.parse(date) }.getOrNull() ?: return false
-        val cents = parsePriceInCents(price) ?: return false
+        val cents = parseCurrencyDigits(price) ?: return false
         viewModelScope.launch {
             runCatching {
                 if (id == null) {
-                    itemRepository.createItem(name, categoryId, arrivalDate, cents)
+                    itemRepository.createItem(name, categoryId, arrivalDate, cents, currency, description)
                 } else {
-                    itemRepository.updateItem(Item(id, name, categoryId, arrivalDate, cents))
+                    itemRepository.updateItem(
+                        Item(id, name, categoryId, arrivalDate, cents, currency, description.trim().ifEmpty { null }),
+                    )
                 }
             }
         }
@@ -55,6 +84,57 @@ class HomeViewModel @Inject constructor(
     }
 
     fun deleteItem(id: String) = viewModelScope.launch { itemRepository.deleteItem(id) }
+
+    fun saveUpdate(
+        existing: ItemUpdate?,
+        itemId: String,
+        description: String,
+        date: String,
+        cost: String,
+    ): Boolean {
+        if (description.isBlank()) return false
+        val parsedDate = runCatching { LocalDate.parse(date) }.getOrNull() ?: return false
+        val cents = if (cost.isBlank()) null else parseCurrencyDigits(cost) ?: return false
+        val item = uiState.value.items.find { it.id == itemId } ?: return false
+        val closure = uiState.value.closures.find { it.itemId == itemId }
+        if (!isUpdateDateValid(item, closure, parsedDate)) return false
+        viewModelScope.launch {
+            if (existing == null) {
+                itemUpdateRepository.create(itemId, parsedDate, description, cents)
+            } else {
+                itemUpdateRepository.update(existing.copy(date = parsedDate, description = description, costInCents = cents))
+            }
+        }
+        return true
+    }
+
+    fun deleteUpdate(update: ItemUpdate) = viewModelScope.launch { itemUpdateRepository.delete(update) }
+
+    fun saveClosure(
+        itemId: String,
+        date: String,
+        reason: ClosureReason,
+        note: String,
+        recoveredValue: String,
+    ): Boolean {
+        val parsedDate = runCatching { LocalDate.parse(date) }.getOrNull() ?: return false
+        val recoveredValueInCents = if (reason == ClosureReason.SOLD && recoveredValue.isNotBlank()) {
+            parseCurrencyDigits(recoveredValue) ?: return false
+        } else {
+            null
+        }
+        val item = uiState.value.items.find { it.id == itemId } ?: return false
+        val updates = uiState.value.updates.filter { it.itemId == itemId }
+        if (!isClosureDateValid(item, updates, parsedDate)) return false
+        viewModelScope.launch {
+            itemClosureRepository.save(
+                ItemClosure(itemId, parsedDate, reason, note.normalizedOptional(), recoveredValueInCents),
+            )
+        }
+        return true
+    }
+
+    fun deleteClosure(closure: ItemClosure) = viewModelScope.launch { itemClosureRepository.delete(closure) }
 
     fun createCategory(name: String) = viewModelScope.launch { categoryRepository.createCategory(name) }
 
@@ -88,4 +168,24 @@ internal fun formatPriceInput(value: String): String {
     val symbols = DecimalFormatSymbols.getInstance()
     val grouped = integer.reversed().chunked(3).joinToString(symbols.groupingSeparator.toString()).reversed()
     return grouped + symbols.decimalSeparator + padded.takeLast(2)
+}
+
+internal fun sanitizeCurrencyDigits(value: String): String = value.filter(Char::isDigit).take(12)
+
+internal fun parseCurrencyDigits(value: String): Long? =
+    sanitizeCurrencyDigits(value).takeIf(String::isNotEmpty)?.toLongOrNull()
+
+internal fun currencyInputPlaceholder(): String = formatPriceInput("0")
+
+internal object CurrencyVisualTransformation : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val formatted = formatPriceInput(text.text)
+        val mapping = object : OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int =
+                if (offset == 0 && text.isEmpty()) 0 else formatted.length
+
+            override fun transformedToOriginal(offset: Int): Int = text.length
+        }
+        return TransformedText(AnnotatedString(formatted), mapping)
+    }
 }

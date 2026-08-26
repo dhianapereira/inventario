@@ -16,12 +16,15 @@ class CategoryRepository @Inject constructor(
 
     suspend fun createCategory(name: String) {
         require(name.isNotBlank())
-        dao.insert(CategoryEntity(UUID.randomUUID().toString(), name.trim()))
+        val now = System.currentTimeMillis()
+        dao.insert(CategoryEntity(UUID.randomUUID().toString(), name.trim(), now, now))
     }
 
     suspend fun updateCategory(category: Category): Boolean {
         require(category.name.isNotBlank())
-        return dao.update(CategoryEntity.fromModel(category.copy(name = category.name.trim()))) > 0
+        return dao.update(
+            CategoryEntity.fromModel(category.copy(name = category.name.trim(), updatedAt = System.currentTimeMillis())),
+        ) > 0
     }
 
     suspend fun deleteCategory(category: Category): Boolean {

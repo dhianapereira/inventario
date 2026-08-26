@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -34,6 +35,8 @@ fun IndustrialField(
     isError: Boolean = false,
     onClick: (() -> Unit)? = null,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    singleLine: Boolean = true,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
 ) {
     val clickModifier = if (onClick == null) Modifier else Modifier.clickable(
         interactionSource = remember { MutableInteractionSource() },
@@ -43,7 +46,7 @@ fun IndustrialField(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(58.dp)
+            .height(if (singleLine) 58.dp else 132.dp)
             .border(
                 BorderStroke(
                     1.dp,
@@ -66,8 +69,9 @@ fun IndustrialField(
             modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
             readOnly = readOnly,
             enabled = onClick == null,
-            singleLine = true,
+            singleLine = singleLine,
             keyboardOptions = keyboardOptions,
+            visualTransformation = visualTransformation,
             textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
             decorationBox = { inner ->

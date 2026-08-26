@@ -4,7 +4,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,6 +38,7 @@ import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Sell
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -46,7 +46,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -54,6 +53,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -67,11 +67,17 @@ import io.github.dhianapereira.inventario.R
 import io.github.dhianapereira.inventario.ui.components.IndustrialField
 import io.github.dhianapereira.inventario.ui.components.IndustrialBottomSheet
 import io.github.dhianapereira.inventario.ui.components.IndustrialSheetOption
+import io.github.dhianapereira.inventario.ui.components.IndustrialSheetAction
 import io.github.dhianapereira.inventario.model.Item
 import io.github.dhianapereira.inventario.model.Category
+import io.github.dhianapereira.inventario.model.ClosureReason
+import io.github.dhianapereira.inventario.model.ItemClosure
+import io.github.dhianapereira.inventario.model.ItemUpdate
+import io.github.dhianapereira.inventario.model.ItemCurrency
 import java.text.NumberFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.util.Currency
 
 @Composable
 fun HomeRoute(
@@ -86,6 +92,10 @@ fun HomeRoute(
         onCreateCategory = viewModel::createCategory,
         onUpdateCategory = viewModel::updateCategory,
         onDeleteCategory = viewModel::deleteCategory,
+        onSaveUpdate = viewModel::saveUpdate,
+        onDeleteUpdate = viewModel::deleteUpdate,
+        onSaveClosure = viewModel::saveClosure,
+        onDeleteClosure = viewModel::deleteClosure,
         settingsContent = settingsContent,
     )
 }
@@ -93,21 +103,34 @@ fun HomeRoute(
 @Composable
 private fun HomeScreen(
     state: HomeUiState,
-    onSaveItem: (String?, String, String, String, String) -> Boolean,
+    onSaveItem: (String?, String, String, String, String, ItemCurrency, String) -> Boolean,
     onDeleteItem: (String) -> Unit,
     onCreateCategory: (String) -> Unit,
     onUpdateCategory: (Category, String) -> Unit,
     onDeleteCategory: (Category) -> Unit,
+    onSaveUpdate: (ItemUpdate?, String, String, String, String) -> Boolean,
+    onDeleteUpdate: (ItemUpdate) -> Unit,
+    onSaveClosure: (String, String, ClosureReason, String, String) -> Boolean,
+    onDeleteClosure: (ItemClosure) -> Unit,
     settingsContent: @Composable (onBack: () -> Unit) -> Unit,
 ) {
     var editingItem by remember { mutableStateOf<Item?>(null) }
     var showItemForm by remember { mutableStateOf(false) }
-    var section by remember { mutableStateOf(HomeSection.INVENTORY) }
-    var search by remember { mutableStateOf("") }
-    var selectedCategoryId by remember { mutableStateOf<String?>(null) }
+    var section by rememberSaveable { mutableStateOf(HomeSection.INVENTORY) }
+    var search by rememberSaveable { mutableStateOf("") }
+    var selectedCategoryId by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedItemId by rememberSaveable { mutableStateOf<String?>(null) }
+    var showFilterSheet by remember { mutableStateOf(false) }
+    var statusFilter by rememberSaveable { mutableStateOf(ItemStatusFilter.ACTIVE) }
+    val closedItemIds = state.closures.mapTo(mutableSetOf(), ItemClosure::itemId)
     val visibleItems = state.items.filter { item ->
         (selectedCategoryId == null || item.categoryId == selectedCategoryId) &&
-            item.name.contains(search, ignoreCase = true)
+            item.name.contains(search, ignoreCase = true) &&
+            when (statusFilter) {
+                ItemStatusFilter.ACTIVE -> item.id !in closedItemIds
+                ItemStatusFilter.FINISHED -> item.id in closedItemIds
+                ItemStatusFilter.ALL -> true
+            }
     }
 
     if (showItemForm) {
@@ -115,12 +138,36 @@ private fun HomeScreen(
             item = editingItem,
             categories = state.categories,
             onBack = { showItemForm = false },
-            onSave = { id, name, categoryId, date, price ->
-                if (onSaveItem(id, name, categoryId, date, price)) showItemForm = false
+            onSave = { id, name, categoryId, date, price, currency, description ->
+                if (onSaveItem(id, name, categoryId, date, price, currency, description)) showItemForm = false
             },
-            onDelete = { id -> onDeleteItem(id); showItemForm = false },
         )
         return
+    }
+    selectedItemId?.let { itemId ->
+        state.items.find { it.id == itemId }?.let { item ->
+            ItemDetailPage(
+                item = item,
+                category = state.categories.find { it.id == item.categoryId },
+                updates = state.updates.filter { it.itemId == itemId },
+                closure = state.closures.find { it.itemId == itemId },
+                onBack = { selectedItemId = null },
+                onEditItem = { editingItem = item; showItemForm = true },
+                onDeleteItem = {
+                    onDeleteItem(itemId)
+                    selectedItemId = null
+                },
+                onSaveUpdate = { update, description, date, cost ->
+                    onSaveUpdate(update, itemId, description, date, cost)
+                },
+                onDeleteUpdate = onDeleteUpdate,
+                onSaveClosure = { date, reason, note, recoveredValue ->
+                    onSaveClosure(itemId, date, reason, note, recoveredValue)
+                },
+                onDeleteClosure = onDeleteClosure,
+            )
+            return
+        }
     }
     androidx.activity.compose.BackHandler(enabled = section != HomeSection.INVENTORY) {
         section = HomeSection.INVENTORY
@@ -145,6 +192,7 @@ private fun HomeScreen(
             if (section == HomeSection.CATEGORIES) {
                 CategoriesContent(
                     categories = state.categories,
+                    usedCategoryIds = state.items.mapTo(mutableSetOf(), Item::categoryId),
                     modifier = Modifier.widthIn(max = 680.dp),
                     onCreate = onCreateCategory,
                     onUpdate = onUpdateCategory,
@@ -177,25 +225,53 @@ private fun HomeScreen(
                 }
             }
             Spacer(Modifier.height(20.dp))
-            IndustrialField(
-                value = search,
-                onValueChange = { search = it },
-                icon = Icons.Outlined.Search,
-                placeholder = stringResource(R.string.search_items).uppercase(),
-            )
-            Spacer(Modifier.height(14.dp))
             Row(
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                IndustrialField(
+                    value = search,
+                    onValueChange = { search = it },
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Outlined.Search,
+                    placeholder = stringResource(R.string.search_items).uppercase(),
+                )
+                val filterActive = selectedCategoryId != null
+                Box(
+                    modifier = Modifier
+                        .size(58.dp)
+                        .background(if (filterActive) MaterialTheme.colorScheme.primary else Color.Transparent)
+                        .border(1.dp, MaterialTheme.colorScheme.outline)
+                        .clickable { showFilterSheet = true },
+                    contentAlignment = androidx.compose.ui.Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Outlined.Tune,
+                        contentDescription = stringResource(R.string.filter_categories),
+                        tint = if (filterActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                CategoryFilter(
+                StatusFilterTag(
+                    label = stringResource(R.string.active_items),
+                    selected = statusFilter == ItemStatusFilter.ACTIVE,
+                    modifier = Modifier.weight(1f),
+                ) { statusFilter = ItemStatusFilter.ACTIVE }
+                StatusFilterTag(
+                    label = stringResource(R.string.finished_items),
+                    selected = statusFilter == ItemStatusFilter.FINISHED,
+                    modifier = Modifier.weight(1f),
+                ) { statusFilter = ItemStatusFilter.FINISHED }
+                StatusFilterTag(
                     label = stringResource(R.string.all),
-                    selected = selectedCategoryId == null,
-                    onClick = { selectedCategoryId = null },
-                )
-                state.categories.forEach { category ->
-                    CategoryFilter(category.name, selectedCategoryId == category.id) { selectedCategoryId = category.id }
-                }
+                    selected = statusFilter == ItemStatusFilter.ALL,
+                    modifier = Modifier.weight(1f),
+                ) { statusFilter = ItemStatusFilter.ALL }
             }
             Spacer(Modifier.height(14.dp))
             if (visibleItems.isEmpty()) {
@@ -203,9 +279,27 @@ private fun HomeScreen(
                     modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 12.dp),
                     verticalArrangement = Arrangement.Center,
                 ) {
-                    Text(stringResource(R.string.no_items).uppercase(), style = MaterialTheme.typography.headlineMedium)
+                    Text(
+                        stringResource(
+                            when (statusFilter) {
+                                ItemStatusFilter.ACTIVE -> R.string.no_active_items
+                                ItemStatusFilter.FINISHED -> R.string.no_finished_items
+                                ItemStatusFilter.ALL -> R.string.no_items
+                            },
+                        ).uppercase(),
+                        style = MaterialTheme.typography.headlineMedium,
+                    )
                     Spacer(Modifier.height(8.dp))
-                    Text(stringResource(R.string.no_items_description), style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        stringResource(
+                            if (statusFilter == ItemStatusFilter.ACTIVE && closedItemIds.isNotEmpty()) {
+                                R.string.no_active_items_description
+                            } else {
+                                R.string.no_items_description
+                            },
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                 }
                 } else {
                     LazyColumn(
@@ -217,7 +311,7 @@ private fun HomeScreen(
                             ItemCard(
                                 item = item,
                                 category = state.categories.find { it.id == item.categoryId },
-                                onEdit = { editingItem = item; showItemForm = true },
+                                onOpen = { selectedItemId = item.id },
                             )
                         }
                     }
@@ -226,12 +320,53 @@ private fun HomeScreen(
         }
     }
 
+    if (showFilterSheet) {
+        IndustrialBottomSheet(
+            title = stringResource(R.string.filter_categories),
+            onDismiss = { showFilterSheet = false },
+        ) {
+            IndustrialSheetOption(stringResource(R.string.all), selectedCategoryId == null) {
+                selectedCategoryId = null
+                showFilterSheet = false
+            }
+            state.categories.forEach { category ->
+                IndustrialSheetOption(category.name, selectedCategoryId == category.id) {
+                    selectedCategoryId = category.id
+                    showFilterSheet = false
+                }
+            }
+        }
+    }
+
 }
 
 @Composable
-private fun ItemCard(item: Item, category: Category?, onEdit: () -> Unit) {
+private fun StatusFilterTag(
+    label: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val background = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
+    val content = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onBackground
+    Text(
+        text = label.uppercase(),
+        modifier = modifier
+            .background(background)
+            .border(1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 6.dp, vertical = 10.dp),
+        color = content,
+        style = MaterialTheme.typography.labelSmall,
+        textAlign = TextAlign.Center,
+        maxLines = 1,
+    )
+}
+
+@Composable
+private fun ItemCard(item: Item, category: Category?, onOpen: () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
@@ -254,31 +389,13 @@ private fun ItemCard(item: Item, category: Category?, onEdit: () -> Unit) {
                         ).uppercase(),
                         style = MaterialTheme.typography.bodySmall,
                     )
-                    Text(NumberFormat.getCurrencyInstance().format(item.purchasePriceInCents / 100.0))
+                    Text(formatCurrency(item.purchasePriceInCents, item.currency))
             }
             Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
-                Text(item.id.takeLast(4).uppercase(), style = MaterialTheme.typography.labelSmall)
-                Spacer(Modifier.height(12.dp))
                 Text("›", style = MaterialTheme.typography.headlineSmall)
             }
         }
     }
-}
-
-@Composable
-private fun CategoryFilter(label: String, selected: Boolean, onClick: () -> Unit) {
-    val background = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
-    val content = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onBackground
-    Text(
-        text = label.uppercase(),
-        modifier = Modifier
-            .clickable(onClick = onClick)
-            .background(background)
-            .border(1.dp, if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
-            .padding(horizontal = 14.dp, vertical = 9.dp),
-        color = content,
-        style = MaterialTheme.typography.labelMedium,
-    )
 }
 
 @Composable
@@ -346,6 +463,7 @@ private fun BottomDestination(
 }
 
 private enum class HomeSection { INVENTORY, CATEGORIES, MORE }
+private enum class ItemStatusFilter { ACTIVE, FINISHED, ALL }
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
@@ -353,19 +471,21 @@ private fun ItemFormPage(
     item: Item?,
     categories: List<Category>,
     onBack: () -> Unit,
-    onSave: (String?, String, String, String, String) -> Unit,
-    onDelete: (String) -> Unit,
+    onSave: (String?, String, String, String, String, ItemCurrency, String) -> Unit,
 ) {
     var name by remember { mutableStateOf(item?.name.orEmpty()) }
     var categoryId by remember { mutableStateOf(item?.categoryId ?: categories.firstOrNull()?.id.orEmpty()) }
     var date by remember { mutableStateOf(item?.arrivalDate?.toString() ?: LocalDate.now().toString()) }
     var price by remember {
-        mutableStateOf(item?.let { formatPriceInput(it.purchasePriceInCents.toString()) }.orEmpty())
+        mutableStateOf(item?.purchasePriceInCents?.toString().orEmpty())
     }
     var showCategorySheet by remember { mutableStateOf(false) }
+    var currency by remember { mutableStateOf(item?.currency ?: ItemCurrency.BRL) }
+    var showCurrencySheet by remember { mutableStateOf(false) }
+    var description by remember { mutableStateOf(item?.description.orEmpty()) }
     val selectedCategory = categories.find { it.id == categoryId }
     val valid = name.isNotBlank() && categoryId.isNotBlank() &&
-        runCatching { LocalDate.parse(date) }.isSuccess && parsePriceInCents(price) != null
+        runCatching { LocalDate.parse(date) }.isSuccess && parseCurrencyDigits(price) != null
 
     androidx.activity.compose.BackHandler(onBack = onBack)
     Box(
@@ -381,7 +501,7 @@ private fun ItemFormPage(
             title = stringResource(if (item == null) R.string.new_item else R.string.edit_item),
             onBack = onBack,
             actionEnabled = valid,
-            onAction = { onSave(item?.id, name, categoryId, date, price) },
+            onAction = { onSave(item?.id, name, categoryId, date, price, currency, description) },
         )
         Spacer(Modifier.height(32.dp))
         Column(
@@ -411,19 +531,29 @@ private fun ItemFormPage(
             FieldLabel(stringResource(R.string.purchase_price))
             IndustrialField(
                 price,
-                { price = formatPriceInput(it) },
+                { price = sanitizeCurrencyDigits(it) },
                 icon = Icons.Outlined.AttachMoney,
-                isError = price.isNotEmpty() && parsePriceInCents(price) == null,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                isError = price.isNotEmpty() && parseCurrencyDigits(price) == null,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                visualTransformation = CurrencyVisualTransformation,
+                placeholder = currencyInputPlaceholder(),
             )
-            if (price.isNotEmpty() && parsePriceInCents(price) == null) ErrorText(stringResource(R.string.invalid_price))
-            if (item != null) {
-                OutlinedButton(
-                    onClick = { onDelete(item.id) },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = androidx.compose.ui.graphics.RectangleShape,
-                ) { Text(stringResource(R.string.delete_item).uppercase()) }
-            }
+            if (price.isNotEmpty() && parseCurrencyDigits(price) == null) ErrorText(stringResource(R.string.invalid_price))
+            FieldLabel(stringResource(R.string.currency))
+            IndustrialField(
+                value = currency.code,
+                onValueChange = {},
+                icon = Icons.Outlined.AttachMoney,
+                readOnly = true,
+                onClick = { showCurrencySheet = true },
+            )
+            FieldLabel(stringResource(R.string.item_description_optional))
+            IndustrialField(
+                value = description,
+                onValueChange = { description = it },
+                singleLine = false,
+                placeholder = stringResource(R.string.item_description_hint),
+            )
         }
         }
     }
@@ -451,11 +581,25 @@ private fun ItemFormPage(
             }
         }
     }
+    if (showCurrencySheet) {
+        IndustrialBottomSheet(
+            title = stringResource(R.string.select_currency),
+            onDismiss = { showCurrencySheet = false },
+        ) {
+            ItemCurrency.entries.forEach { option ->
+                IndustrialSheetOption(option.code, option == currency) {
+                    currency = option
+                    showCurrencySheet = false
+                }
+            }
+        }
+    }
 }
 
 @Composable
 private fun CategoriesContent(
     categories: List<Category>,
+    usedCategoryIds: Set<String>,
     modifier: Modifier = Modifier,
     onCreate: (String) -> Unit,
     onUpdate: (Category, String) -> Unit,
@@ -463,6 +607,7 @@ private fun CategoriesContent(
 ) {
     var name by remember { mutableStateOf("") }
     var editing by remember { mutableStateOf<Category?>(null) }
+    var deleting by remember { mutableStateOf<Category?>(null) }
     Column(
         modifier.fillMaxSize().imePadding().padding(horizontal = 20.dp),
     ) {
@@ -518,8 +663,19 @@ private fun CategoriesContent(
                 editing = null
             },
             onDelete = {
-                onDelete(category)
                 editing = null
+                deleting = category
+            },
+        )
+    }
+    deleting?.let { category ->
+        CategoryDeleteSheet(
+            category = category,
+            inUse = category.id in usedCategoryIds,
+            onDismiss = { deleting = null },
+            onConfirm = {
+                onDelete(category)
+                deleting = null
             },
         )
     }
@@ -541,26 +697,51 @@ private fun CategoryEditSheet(
         Spacer(Modifier.height(8.dp))
         IndustrialField(name, { name = it })
         Spacer(Modifier.height(16.dp))
-        Button(
+        IndustrialSheetAction(
+            label = stringResource(R.string.save),
             onClick = { onSave(name) },
+            primary = true,
             enabled = name.isNotBlank(),
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            shape = androidx.compose.ui.graphics.RectangleShape,
-        ) { Text(stringResource(R.string.save).uppercase()) }
-        Spacer(Modifier.height(8.dp))
-        OutlinedButton(
-            onClick = onDismiss,
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            shape = androidx.compose.ui.graphics.RectangleShape,
-        ) { Text(stringResource(R.string.cancel).uppercase()) }
-        OutlinedButton(
+        )
+        IndustrialSheetAction(stringResource(R.string.cancel), onDismiss)
+        IndustrialSheetAction(
+            label = stringResource(R.string.delete_category),
+            destructive = true,
             onClick = onDelete,
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            shape = androidx.compose.ui.graphics.RectangleShape,
-        ) {
-            Text(stringResource(R.string.delete).uppercase(), color = MaterialTheme.colorScheme.error)
-        }
+        )
     }
+}
+
+@Composable
+private fun CategoryDeleteSheet(
+    category: Category,
+    inUse: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    IndustrialBottomSheet(
+        title = stringResource(R.string.delete_category),
+        onDismiss = onDismiss,
+    ) {
+        Text(
+            stringResource(
+                if (inUse) R.string.category_in_use_message else R.string.delete_category_confirmation,
+                category.name,
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Spacer(Modifier.height(16.dp))
+        if (inUse) {
+            IndustrialSheetAction(stringResource(R.string.close), onDismiss, primary = true)
+        } else {
+            IndustrialSheetAction(stringResource(R.string.cancel), onDismiss)
+            IndustrialSheetAction(
+                label = stringResource(R.string.delete),
+                destructive = true,
+                onClick = onConfirm,
+            )
+        }
+        }
 }
 
 @Composable
@@ -598,3 +779,6 @@ private fun FieldLabel(text: String) {
 private fun ErrorText(text: String) {
     Text(text, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
 }
+
+private fun formatCurrency(cents: Long, currency: ItemCurrency): String =
+    NumberFormat.getCurrencyInstance().apply { this.currency = Currency.getInstance(currency.code) }.format(cents / 100.0)

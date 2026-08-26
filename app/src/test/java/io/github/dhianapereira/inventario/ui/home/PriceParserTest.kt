@@ -14,4 +14,15 @@ class PriceParserTest {
     fun `formatted input remains parseable`() {
         assertEquals(123_45L, parsePriceInCents(formatPriceInput("12345")))
     }
+
+    @Test fun `currency digits represent cents directly`() =
+        assertEquals(12_345L, parseCurrencyDigits("12345"))
+
+    @Test fun `currency input strips formatting and limits its size`() =
+        assertEquals("123456789012", sanitizeCurrencyDigits("R$ 1.234.567.890.123,45"))
+
+    @Test fun `currency digits reject an empty value`() = assertNull(parseCurrencyDigits(""))
+
+    @Test fun `currency placeholder displays zero cents`() =
+        assertEquals(formatPriceInput("0"), currencyInputPlaceholder())
 }
