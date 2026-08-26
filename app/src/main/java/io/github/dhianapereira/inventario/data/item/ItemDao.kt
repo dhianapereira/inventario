@@ -26,4 +26,13 @@ interface ItemDao {
 
     @Delete
     suspend fun delete(item: ItemEntity): Int
+
+    @Query("SELECT * FROM items ORDER BY id")
+    suspend fun getAllForBackup(): List<ItemEntity>
+
+    @Insert
+    suspend fun insertAll(items: List<ItemEntity>)
+
+    @Query("DELETE FROM items")
+    suspend fun deleteAll()
 }

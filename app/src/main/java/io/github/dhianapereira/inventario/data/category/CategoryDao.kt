@@ -23,4 +23,13 @@ interface CategoryDao {
 
     @Query("SELECT COUNT(*) FROM items WHERE categoryId = :categoryId")
     suspend fun countItems(categoryId: String): Int
+
+    @Query("SELECT * FROM categories ORDER BY id")
+    suspend fun getAllForBackup(): List<CategoryEntity>
+
+    @Insert
+    suspend fun insertAll(categories: List<CategoryEntity>)
+
+    @Query("DELETE FROM categories")
+    suspend fun deleteAll()
 }

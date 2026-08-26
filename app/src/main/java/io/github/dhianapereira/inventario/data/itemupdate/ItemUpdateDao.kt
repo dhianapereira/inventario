@@ -20,4 +20,13 @@ interface ItemUpdateDao {
 
     @Delete
     suspend fun delete(update: ItemUpdateEntity): Int
+
+    @Query("SELECT * FROM item_updates ORDER BY id")
+    suspend fun getAllForBackup(): List<ItemUpdateEntity>
+
+    @Insert
+    suspend fun insertAll(updates: List<ItemUpdateEntity>)
+
+    @Query("DELETE FROM item_updates")
+    suspend fun deleteAll()
 }

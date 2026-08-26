@@ -19,4 +19,13 @@ interface ItemClosureDao {
 
     @Delete
     suspend fun delete(closure: ItemClosureEntity): Int
+
+    @Query("SELECT * FROM item_closures ORDER BY itemId")
+    suspend fun getAllForBackup(): List<ItemClosureEntity>
+
+    @Upsert
+    suspend fun upsertAll(closures: List<ItemClosureEntity>)
+
+    @Query("DELETE FROM item_closures")
+    suspend fun deleteAll()
 }
