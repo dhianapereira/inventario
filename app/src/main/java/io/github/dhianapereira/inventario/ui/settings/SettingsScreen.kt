@@ -53,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -67,6 +68,11 @@ import io.github.dhianapereira.inventario.model.AppTheme
 
 private enum class SettingsPage { MAIN, PREFERENCES, DATA, LEGAL, ABOUT }
 
+private const val PRIVACY_POLICY_URL =
+    "https://dhianapereira.github.io/apps/inventario/legal/politica-de-privacidade/"
+private const val TERMS_OF_USE_URL =
+    "https://dhianapereira.github.io/apps/inventario/legal/termos-de-uso/"
+
 @Composable
 fun SettingsRoute(
     theme: AppTheme,
@@ -79,6 +85,7 @@ fun SettingsRoute(
     val backupState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
     var page by rememberSaveable { mutableStateOf(SettingsPage.MAIN) }
     var pendingRestoreUri by rememberSaveable { mutableStateOf<String?>(null) }
     val exportLauncher = rememberLauncherForActivityResult(
@@ -109,8 +116,12 @@ fun SettingsRoute(
                 }
             }
             SettingsPage.LEGAL -> SettingsPage(stringResource(R.string.legal), { page = SettingsPage.MAIN }) {
-                SettingsRow(Icons.Outlined.Description, stringResource(R.string.privacy_policy), stringResource(R.string.coming_soon))
-                SettingsRow(Icons.Outlined.Description, stringResource(R.string.terms_of_use), stringResource(R.string.coming_soon))
+                SettingsRow(Icons.Outlined.Description, stringResource(R.string.privacy_policy)) {
+                    uriHandler.openUri(PRIVACY_POLICY_URL)
+                }
+                SettingsRow(Icons.Outlined.Description, stringResource(R.string.terms_of_use)) {
+                    uriHandler.openUri(TERMS_OF_USE_URL)
+                }
             }
             SettingsPage.ABOUT -> AboutPage { page = SettingsPage.MAIN }
         }
