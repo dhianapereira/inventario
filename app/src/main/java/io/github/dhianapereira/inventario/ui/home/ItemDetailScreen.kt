@@ -138,25 +138,6 @@ internal fun ItemDetailPage(
         Column(Modifier.fillMaxSize().widthIn(max = 680.dp).padding(horizontal = 20.dp)) {
             Spacer(Modifier.height(20.dp))
             DetailHeader(onBack, onEditItem) { showActions = true }
-            Spacer(Modifier.height(16.dp))
-            Text(item.name.uppercase(), style = MaterialTheme.typography.displaySmall)
-            Spacer(Modifier.height(6.dp))
-            Text(
-                (category?.name ?: stringResource(R.string.unknown_category)).uppercase(),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            item.description?.takeIf { it.isNotBlank() }?.let { description ->
-                Spacer(Modifier.height(12.dp))
-                Text(description, style = MaterialTheme.typography.bodyMedium)
-            }
-            Spacer(Modifier.height(22.dp))
-            ItemSummary(item, maintenanceCost(updates), closure)
-            Spacer(Modifier.height(22.dp))
-            Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outline))
-            Spacer(Modifier.height(14.dp))
-            Text(stringResource(R.string.timeline).uppercase(), style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.height(10.dp))
             val events = buildList<TimelineEvent> {
                 add(TimelineEvent.Arrival(item))
                 timelineOrdered(updates).forEach { add(TimelineEvent.Update(it)) }
@@ -164,9 +145,31 @@ internal fun ItemDetailPage(
             }.sortedBy { it.date }
             LazyColumn(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
-                contentPadding = PaddingValues(bottom = 16.dp),
+                contentPadding = PaddingValues(top = 16.dp, bottom = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                item(key = "item-details") {
+                    Column {
+                        Text(item.name.uppercase(), style = MaterialTheme.typography.displaySmall)
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            (category?.name ?: stringResource(R.string.unknown_category)).uppercase(),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        item.description?.takeIf { it.isNotBlank() }?.let { description ->
+                            Spacer(Modifier.height(12.dp))
+                            Text(description, style = MaterialTheme.typography.bodyMedium)
+                        }
+                        Spacer(Modifier.height(22.dp))
+                        ItemSummary(item, maintenanceCost(updates), closure)
+                        Spacer(Modifier.height(22.dp))
+                        Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outline))
+                        Spacer(Modifier.height(14.dp))
+                        Text(stringResource(R.string.timeline).uppercase(), style = MaterialTheme.typography.titleLarge)
+                        Spacer(Modifier.height(2.dp))
+                    }
+                }
                 items(events, key = TimelineEvent::key) { event ->
                     TimelineCard(event, item.currency) {
                         when (event) {
@@ -176,14 +179,15 @@ internal fun ItemDetailPage(
                         }
                     }
                 }
-            }
-            if (closure == null) {
-                Button(
-                    onClick = { editingUpdate = null; showUpdateForm = true },
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    shape = RectangleShape,
-                ) { Text("+  " + stringResource(R.string.add_update).uppercase()) }
-                Spacer(Modifier.height(12.dp))
+                if (closure == null) {
+                    item(key = "add-update") {
+                        Button(
+                            onClick = { editingUpdate = null; showUpdateForm = true },
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                            shape = RectangleShape,
+                        ) { Text("+  " + stringResource(R.string.add_update).uppercase()) }
+                    }
+                }
             }
         }
     }
