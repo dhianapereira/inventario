@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Inventário</string>
+    <string name="app_name" translatable="false">Inventário</string>
     <string name="no_items">Nenhum item cadastrado</string>
     <string name="no_active_items">Nenhum ciclo ativo</string>
     <string name="no_finished_items">Nenhum ciclo finalizado</string>
