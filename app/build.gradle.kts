@@ -23,7 +23,7 @@ android {
     defaultConfig {
         applicationId = "io.github.dhianapereira.inventario"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = releaseVersionCode.orNull?.toInt() ?: 1
         versionName = releaseVersionName.orNull ?: "0.1.0"
     }
