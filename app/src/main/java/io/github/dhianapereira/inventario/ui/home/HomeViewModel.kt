@@ -61,13 +61,12 @@ class HomeViewModel @Inject constructor(
         id: String?,
         name: String,
         categoryId: String,
-        date: String,
+        arrivalDate: LocalDate,
         price: String,
         currency: ItemCurrency,
         description: String,
     ): Boolean {
         if (name.isBlank() || categoryId.isBlank()) return false
-        val arrivalDate = runCatching { LocalDate.parse(date) }.getOrNull() ?: return false
         val cents = parseCurrencyDigits(price) ?: return false
         viewModelScope.launch {
             runCatching {
@@ -89,20 +88,19 @@ class HomeViewModel @Inject constructor(
         existing: ItemUpdate?,
         itemId: String,
         description: String,
-        date: String,
+        date: LocalDate,
         cost: String,
     ): Boolean {
         if (description.isBlank()) return false
-        val parsedDate = runCatching { LocalDate.parse(date) }.getOrNull() ?: return false
         val cents = if (cost.isBlank()) null else parseCurrencyDigits(cost) ?: return false
         val item = uiState.value.items.find { it.id == itemId } ?: return false
         val closure = uiState.value.closures.find { it.itemId == itemId }
-        if (!isUpdateDateValid(item, closure, parsedDate)) return false
+        if (!isUpdateDateValid(item, closure, date)) return false
         viewModelScope.launch {
             if (existing == null) {
-                itemUpdateRepository.create(itemId, parsedDate, description, cents)
+                itemUpdateRepository.create(itemId, date, description, cents)
             } else {
-                itemUpdateRepository.update(existing.copy(date = parsedDate, description = description, costInCents = cents))
+                itemUpdateRepository.update(existing.copy(date = date, description = description, costInCents = cents))
             }
         }
         return true
@@ -112,12 +110,11 @@ class HomeViewModel @Inject constructor(
 
     fun saveClosure(
         itemId: String,
-        date: String,
+        date: LocalDate,
         reason: ClosureReason,
         note: String,
         recoveredValue: String,
     ): Boolean {
-        val parsedDate = runCatching { LocalDate.parse(date) }.getOrNull() ?: return false
         val recoveredValueInCents = if (reason == ClosureReason.SOLD && recoveredValue.isNotBlank()) {
             parseCurrencyDigits(recoveredValue) ?: return false
         } else {
@@ -125,10 +122,10 @@ class HomeViewModel @Inject constructor(
         }
         val item = uiState.value.items.find { it.id == itemId } ?: return false
         val updates = uiState.value.updates.filter { it.itemId == itemId }
-        if (!isClosureDateValid(item, updates, parsedDate)) return false
+        if (!isClosureDateValid(item, updates, date)) return false
         viewModelScope.launch {
             itemClosureRepository.save(
-                ItemClosure(itemId, parsedDate, reason, note.normalizedOptional(), recoveredValueInCents),
+                ItemClosure(itemId, date, reason, note.normalizedOptional(), recoveredValueInCents),
             )
         }
         return true
