@@ -16,7 +16,6 @@
     <string name="all_categories">Lista de todas as categorias</string>
     <string name="category_required">Cadastre uma categoria antes de adicionar um item.</string>
     <string name="no_categories_available">Nenhuma categoria cadastrada. Acesse Categorias para criar a primeira.</string>
-    <string name="invalid_date">Informe uma data válida no formato AAAA-MM-DD.</string>
     <string name="invalid_price">Informe um valor monetário válido.</string>
     <string name="arrival_date">Data de chegada</string>
     <string name="purchase_price">Valor pago</string>

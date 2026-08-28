@@ -33,7 +33,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Category
-import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.AttachMoney
 import androidx.compose.material.icons.outlined.Inventory2
@@ -68,6 +67,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.dhianapereira.inventario.R
 import io.github.dhianapereira.inventario.ui.components.IndustrialField
+import io.github.dhianapereira.inventario.ui.components.IndustrialDateField
 import io.github.dhianapereira.inventario.ui.components.IndustrialBottomSheet
 import io.github.dhianapereira.inventario.ui.components.IndustrialSheetOption
 import io.github.dhianapereira.inventario.ui.components.IndustrialSheetAction
@@ -106,14 +106,14 @@ fun HomeRoute(
 @Composable
 private fun HomeScreen(
     state: HomeUiState,
-    onSaveItem: (String?, String, String, String, String, ItemCurrency, String) -> Boolean,
+    onSaveItem: (String?, String, String, LocalDate, String, ItemCurrency, String) -> Boolean,
     onDeleteItem: (String) -> Unit,
     onCreateCategory: (String) -> Unit,
     onUpdateCategory: (Category, String) -> Unit,
     onDeleteCategory: (Category) -> Unit,
-    onSaveUpdate: (ItemUpdate?, String, String, String, String) -> Boolean,
+    onSaveUpdate: (ItemUpdate?, String, String, LocalDate, String) -> Boolean,
     onDeleteUpdate: (ItemUpdate) -> Unit,
-    onSaveClosure: (String, String, ClosureReason, String, String) -> Boolean,
+    onSaveClosure: (String, LocalDate, ClosureReason, String, String) -> Boolean,
     onDeleteClosure: (ItemClosure) -> Unit,
     settingsContent: @Composable (onBack: () -> Unit) -> Unit,
 ) {
@@ -489,11 +489,11 @@ private fun ItemFormPage(
     item: Item?,
     categories: List<Category>,
     onBack: () -> Unit,
-    onSave: (String?, String, String, String, String, ItemCurrency, String) -> Unit,
+    onSave: (String?, String, String, LocalDate, String, ItemCurrency, String) -> Unit,
 ) {
     var name by remember { mutableStateOf(item?.name.orEmpty()) }
     var categoryId by remember { mutableStateOf(item?.categoryId ?: categories.firstOrNull()?.id.orEmpty()) }
-    var date by remember { mutableStateOf(item?.arrivalDate?.toString() ?: LocalDate.now().toString()) }
+    var date by remember { mutableStateOf(item?.arrivalDate ?: LocalDate.now()) }
     var price by remember {
         mutableStateOf(item?.purchasePriceInCents?.toString().orEmpty())
     }
@@ -502,8 +502,7 @@ private fun ItemFormPage(
     var showCurrencySheet by remember { mutableStateOf(false) }
     var description by remember { mutableStateOf(item?.description.orEmpty()) }
     val selectedCategory = categories.find { it.id == categoryId }
-    val valid = name.isNotBlank() && categoryId.isNotBlank() &&
-        runCatching { LocalDate.parse(date) }.isSuccess && parseCurrencyDigits(price) != null
+    val valid = name.isNotBlank() && categoryId.isNotBlank() && parseCurrencyDigits(price) != null
 
     androidx.activity.compose.BackHandler(onBack = onBack)
     Box(
@@ -539,13 +538,10 @@ private fun ItemFormPage(
             )
             if (categories.isEmpty()) ErrorText(stringResource(R.string.category_required))
             FieldLabel(stringResource(R.string.arrival_date))
-            IndustrialField(
-                date,
-                { date = it },
-                icon = Icons.Outlined.CalendarMonth,
-                isError = runCatching { LocalDate.parse(date) }.isFailure,
+            IndustrialDateField(
+                value = date,
+                onValueChange = { date = it },
             )
-            if (runCatching { LocalDate.parse(date) }.isFailure) ErrorText(stringResource(R.string.invalid_date))
             FieldLabel(stringResource(R.string.purchase_price))
             IndustrialField(
                 price,

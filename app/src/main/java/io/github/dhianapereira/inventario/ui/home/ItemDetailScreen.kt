@@ -32,7 +32,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.AttachMoney
-import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.EventBusy
@@ -70,6 +69,7 @@ import io.github.dhianapereira.inventario.model.isUpdateDateValid
 import io.github.dhianapereira.inventario.model.maintenanceCost
 import io.github.dhianapereira.inventario.model.timelineOrdered
 import io.github.dhianapereira.inventario.ui.components.IndustrialBottomSheet
+import io.github.dhianapereira.inventario.ui.components.IndustrialDateField
 import io.github.dhianapereira.inventario.ui.components.IndustrialField
 import io.github.dhianapereira.inventario.ui.components.IndustrialSheetOption
 import io.github.dhianapereira.inventario.ui.components.IndustrialSheetAction
@@ -88,9 +88,9 @@ internal fun ItemDetailPage(
     onBack: () -> Unit,
     onEditItem: () -> Unit,
     onDeleteItem: () -> Unit,
-    onSaveUpdate: (ItemUpdate?, String, String, String) -> Boolean,
+    onSaveUpdate: (ItemUpdate?, String, LocalDate, String) -> Boolean,
     onDeleteUpdate: (ItemUpdate) -> Unit,
-    onSaveClosure: (String, ClosureReason, String, String) -> Boolean,
+    onSaveClosure: (LocalDate, ClosureReason, String, String) -> Boolean,
     onDeleteClosure: (ItemClosure) -> Unit,
 ) {
     var editingUpdate by remember { mutableStateOf<ItemUpdate?>(null) }
@@ -347,20 +347,23 @@ private fun UpdateFormPage(
     update: ItemUpdate?,
     closure: ItemClosure?,
     onBack: () -> Unit,
-    onSave: (String, String, String) -> Unit,
+    onSave: (String, LocalDate, String) -> Unit,
     onDelete: (() -> Unit)?,
 ) {
     var description by remember { mutableStateOf(update?.description.orEmpty()) }
-    var date by remember { mutableStateOf((update?.date ?: LocalDate.now()).toString()) }
+    var date by remember { mutableStateOf(update?.date ?: LocalDate.now()) }
     var cost by remember { mutableStateOf(update?.costInCents?.toString().orEmpty()) }
-    val parsedDate = runCatching { LocalDate.parse(date) }.getOrNull()
-    val validDate = parsedDate != null && isUpdateDateValid(item, closure, parsedDate)
+    val validDate = isUpdateDateValid(item, closure, date)
     val valid = description.isNotBlank() && validDate && (cost.isBlank() || parseCurrencyDigits(cost) != null)
     LifecycleFormPage(stringResource(if (update == null) R.string.new_update else R.string.edit_update), onBack, valid, { onSave(description, date, cost) }) {
         FormLabel(stringResource(R.string.update_description))
         IndustrialField(description, { description = it }, singleLine = false)
         FormLabel(stringResource(R.string.date))
-        IndustrialField(date, { date = it }, icon = Icons.Outlined.CalendarMonth, isError = !validDate)
+        IndustrialDateField(
+            value = date,
+            onValueChange = { date = it },
+            isError = !validDate,
+        )
         if (!validDate) FormError(stringResource(R.string.invalid_lifecycle_date))
         FormLabel(stringResource(R.string.amount_optional))
         IndustrialField(
@@ -382,17 +385,16 @@ private fun ClosureFormPage(
     closure: ItemClosure?,
     updates: List<ItemUpdate>,
     onBack: () -> Unit,
-    onSave: (String, ClosureReason, String, String) -> Unit,
+    onSave: (LocalDate, ClosureReason, String, String) -> Unit,
 ) {
-    var date by remember { mutableStateOf((closure?.date ?: LocalDate.now()).toString()) }
+    var date by remember { mutableStateOf(closure?.date ?: LocalDate.now()) }
     var reason by remember { mutableStateOf(closure?.reason ?: ClosureReason.STOPPED_WORKING) }
     var note by remember { mutableStateOf(closure?.note.orEmpty()) }
     var recoveredValue by remember {
         mutableStateOf(closure?.recoveredValueInCents?.toString().orEmpty())
     }
     var showReasons by remember { mutableStateOf(false) }
-    val parsedDate = runCatching { LocalDate.parse(date) }.getOrNull()
-    val validDate = parsedDate != null && isClosureDateValid(item, updates, parsedDate)
+    val validDate = isClosureDateValid(item, updates, date)
     val validRecoveredValue = reason != ClosureReason.SOLD || recoveredValue.isBlank() || parseCurrencyDigits(recoveredValue) != null
     LifecycleFormPage(
         stringResource(R.string.end_use),
@@ -401,7 +403,11 @@ private fun ClosureFormPage(
         { onSave(date, reason, note, recoveredValue) },
     ) {
         FormLabel(stringResource(R.string.date))
-        IndustrialField(date, { date = it }, icon = Icons.Outlined.CalendarMonth, isError = !validDate)
+        IndustrialDateField(
+            value = date,
+            onValueChange = { date = it },
+            isError = !validDate,
+        )
         if (!validDate) FormError(stringResource(R.string.invalid_closure_date))
         FormLabel(stringResource(R.string.closure_reason))
         IndustrialField(

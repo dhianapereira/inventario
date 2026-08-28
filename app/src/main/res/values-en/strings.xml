@@ -15,7 +15,6 @@
     <string name="all_categories">All categories</string>
     <string name="category_required">Create a category before adding an item.</string>
     <string name="no_categories_available">No categories available. Open Categories to create the first one.</string>
-    <string name="invalid_date">Enter a valid date using YYYY-MM-DD.</string>
     <string name="invalid_price">Enter a valid monetary value.</string>
     <string name="arrival_date">Arrival date</string>
     <string name="purchase_price">Purchase price</string>
